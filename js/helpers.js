@@ -24,7 +24,8 @@ const PRIORITIES = {
 const INCIDENT_TYPES = ['Behavior', 'Academic', 'Missing homework', 'Tardiness / Absence', 'Health', 'Uniform', 'Conflict with peers', 'Other'];
 const SEVERITIES = { minor: 'Minor', moderate: 'Moderate', serious: 'Serious' };
 
-const EXPENSE_CATS = ['Food & groceries', 'Transport', 'Bills & services', 'Rent / Housing', 'Health', 'Shopping', 'Education', 'Entertainment', 'Family', 'Phone & internet', 'Debt payment', 'Other'];
+const EXPENSE_CATS = ['Food & groceries', 'Transport', 'Bills & services', 'Rent / Housing', 'Health', 'Shopping', 'Education', 'Entertainment', 'Family', 'Phone & internet', 'Cashea', 'Debt payment', 'Other'];
+const DEBT_SUGGESTIONS = ['Cashea', 'Bank', 'Credit card', 'Mom', 'Dad'];
 const INCOME_CATS = ['Salary', 'Online classes', 'Freelance', 'Bonus', 'Other'];
 const INCOME_SOURCES = { donbosco: 'Don Bosco', foureleven: '4 Eleven Media', online: 'Online Classes', other: 'Other' };
 /** Currency each job pays in (used as the default when recording income). */

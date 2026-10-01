@@ -72,7 +72,8 @@ function fieldHTML(f, v) {
       input = `<input type="number" name="${f.name}" value="${v ?? ''}" step="${f.step || 'any'}" min="0" inputmode="decimal" ${ph}>`;
       break;
     default:
-      input = `<input type="${f.type || 'text'}" name="${f.name}" value="${esc(v ?? '')}" ${ph} autocomplete="off">`;
+      input = `<input type="${f.type || 'text'}" name="${f.name}" value="${esc(v ?? '')}" ${ph} autocomplete="off"${f.suggestions ? ` list="dl-${f.name}"` : ''}>`
+        + (f.suggestions ? `<datalist id="dl-${f.name}">${f.suggestions.map((o) => `<option value="${esc(o)}">`).join('')}</datalist>` : '');
   }
   const tag = f.type === 'pills' || f.type === 'days' ? 'div' : 'label';
   return `<${tag} class="${cls}" data-field="${f.name}"><span>${esc(f.label)}${f.required ? ' *' : ''}</span>${input}</${tag}>`;

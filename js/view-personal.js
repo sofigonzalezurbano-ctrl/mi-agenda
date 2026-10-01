@@ -89,7 +89,8 @@ function debtRow(d) {
   const s = debtStatus(d);
   const pct = d.amount > 0 ? Math.min(100, (s.paid / d.amount) * 100) : 0;
   const when = s.done ? 'Paid off 🎉' : s.overdue ? `Overdue since ${fmtDate(s.nextDue)}` : `Pay ${relDay(s.nextDue).toLowerCase() === 'today' ? 'today' : 'by ' + fmtDate(s.nextDue)}`;
-  const plan = d.repeat === 'monthly' ? `${d.installment ? money(d.installment, d.currency) + '/month' : 'Monthly'}` : 'One payment';
+  const freq = { monthly: 'every month', biweekly: 'every 2 weeks' }[d.repeat];
+  const plan = !freq ? 'One payment' : d.installment ? `${money(d.installment, d.currency)} ${freq}` : freq[0].toUpperCase() + freq.slice(1);
   return `<div class="debt ${s.done ? 'paid' : s.overdue ? 'overdue' : ''}">
     <div class="debt-top">
       <div class="debt-main" data-action="edit-debt" data-id="${d.id}">

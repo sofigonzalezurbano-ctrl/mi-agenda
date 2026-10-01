@@ -180,7 +180,7 @@ function agendaFor(iso) {
     const k = debtOccurrenceOn(debt, iso);
     if (k < 0) return;
     const s = debtStatus(debt);
-    const done = debt.repeat === 'monthly' ? k < s.payments : s.remaining <= 0;
+    const done = isInstallmentDebt(debt) ? k < s.payments : s.remaining <= 0;
     items.push({
       kind: 'debt', id: debt.id, date: iso, title: `Pay ${debt.creditor}`, job: 'personal', time: null, done, priority: 'high',
       sub: money(debtInstallmentAmount(debt, s) || debt.amount, debt.currency),
@@ -221,6 +221,10 @@ function overdueTasks() {
 }
 
 /* ---- Debts ---- */
+/** Debts paid in installments: every month on the same day, or every 2 weeks (e.g. Cashea). */
+const isInstallmentDebt = (debt) => debt.repeat === 'monthly' || debt.repeat === 'biweekly';
+/** Date of installment k (0 = first). */
+const debtDueAt = (debt, k) => (debt.repeat === 'biweekly' ? addDays(debt.dueDate, 14 * k) : addMonthsKeepDay(debt.dueDate, k));
 const debtPayments = (debt) => Store.data.transactions.filter((t) => t.debtId === debt.id);
 
 /** Paid so far (in the debt's currency), what is left, and the next date to pay. */
@@ -235,25 +239,32 @@ function debtStatus(debt) {
   }, 0);
   const remaining = Math.max(0, Number(debt.amount || 0) - paid);
   const done = remaining <= 0.005;
-  // Monthly debts: each payment covers one month, so the next due date moves forward one month per payment.
-  const nextDue = done ? null : debt.repeat === 'monthly' ? addMonthsKeepDay(debt.dueDate, pays.length) : debt.dueDate;
+  // Installment debts: each payment covers one installment, so the next due date moves forward one period per payment.
+  const nextDue = done ? null : isInstallmentDebt(debt) ? debtDueAt(debt, pays.length) : debt.dueDate;
   return { paid, remaining: done ? 0 : remaining, payments: pays.length, nextDue, done, overdue: !!nextDue && nextDue < todayISO() };
 }
 
 /** What the next payment should be: the installment (or what is left, if less), else the whole remaining amount. */
 function debtInstallmentAmount(debt, s = debtStatus(debt)) {
-  if (debt.repeat === 'monthly' && debt.installment > 0) return s.remaining > 0 ? Math.min(debt.installment, s.remaining) : debt.installment;
+  if (isInstallmentDebt(debt) && debt.installment > 0) return s.remaining > 0 ? Math.min(debt.installment, s.remaining) : debt.installment;
   return s.remaining;
 }
 
 /** Which installment (0, 1, 2…) falls on this date, or -1. Paid ones stay visible; future ones only while money is owed. */
 function debtOccurrenceOn(debt, iso) {
   if (!debt.dueDate || iso < debt.dueDate) return -1;
-  if (debt.repeat !== 'monthly') return iso === debt.dueDate ? 0 : -1;
-  const [y0, m0] = debt.dueDate.split('-').map(Number);
-  const [y1, m1] = iso.split('-').map(Number);
-  const k = (y1 - y0) * 12 + (m1 - m0);
-  if (addMonthsKeepDay(debt.dueDate, k) !== iso) return -1;
+  if (!isInstallmentDebt(debt)) return iso === debt.dueDate ? 0 : -1;
+  let k;
+  if (debt.repeat === 'biweekly') {
+    const days = Math.round((fromISO(iso) - fromISO(debt.dueDate)) / 86400000);
+    if (days % 14) return -1;
+    k = days / 14;
+  } else {
+    const [y0, m0] = debt.dueDate.split('-').map(Number);
+    const [y1, m1] = iso.split('-').map(Number);
+    k = (y1 - y0) * 12 + (m1 - m0);
+  }
+  if (debtDueAt(debt, k) !== iso) return -1;
   const s = debtStatus(debt);
   if (k < s.payments) return k;
   if (s.done) return -1;

@@ -464,18 +464,18 @@ function debtForm(d) {
     title: d ? 'Edit debt' : 'New debt',
     values: d || { currency: 'USD', repeat: 'once', dueDate: todayISO() },
     fields: [
-      { name: 'creditor', label: 'Who do you owe?', required: true, placeholder: 'e.g. Mom, Bank, Credit card' },
+      { name: 'creditor', label: 'Who do you owe?', required: true, placeholder: 'e.g. Cashea, Mom, Bank', suggestions: DEBT_SUGGESTIONS },
       { name: 'description', label: 'What is it for? (optional)', placeholder: 'e.g. Laptop' },
       { name: 'amount', label: 'Total owed', type: 'number', half: true, required: true },
       { name: 'currency', label: 'Currency', type: 'select', options: currencyOptions(), half: true },
-      { name: 'repeat', label: 'How do you pay it?', type: 'pills', options: [['once', 'All at once'], ['monthly', 'Monthly installments']] },
-      { name: 'installment', label: 'Monthly payment', type: 'number', half: true, show: (v) => v.repeat === 'monthly' },
+      { name: 'repeat', label: 'How do you pay it?', type: 'pills', options: [['once', 'All at once'], ['biweekly', 'Every 2 weeks'], ['monthly', 'Every month']] },
+      { name: 'installment', label: 'Payment each time', type: 'number', half: true, show: (v) => v.repeat !== 'once' },
       { name: 'dueDate', label: 'When do you have to pay?', type: 'date', half: true, required: true },
-      { name: 'dueHint', type: 'html', cls: 'small', html: 'For monthly installments, this is the date of the next payment — it repeats on the same day every month.', show: (v) => v.repeat === 'monthly' },
+      { name: 'dueHint', type: 'html', cls: 'small', html: 'This is the date of the next payment. The rest follow automatically (every 2 weeks or every month).', show: (v) => v.repeat !== 'once' },
       { name: 'notes', label: 'Notes', type: 'textarea' },
     ],
     onSave: (v) => {
-      if (v.repeat !== 'monthly') v.installment = null;
+      if (v.repeat === 'once') v.installment = null;
       if (d) Store.update('debts', d.id, v); else Store.add('debts', v);
       toast(d ? 'Debt updated' : 'Debt added');
     },
@@ -483,6 +483,13 @@ function debtForm(d) {
       Store.data.transactions.forEach((t) => { if (t.debtId === d.id) t.debtId = null; });
       Store.remove('debts', d.id);
     } : null,
+    onChange: (v, form) => {
+      if (!d && /cashea/i.test(v.creditor) && !form.dataset.casheaSet) {
+        form.dataset.casheaSet = '1';
+        const b = form.querySelector('input[name="repeat"][value="biweekly"]');
+        if (b && !b.checked) { b.checked = true; b.dispatchEvent(new Event('change', { bubbles: true })); }
+      }
+    },
     deleteConfirm: 'Delete this debt? Payments you already made stay in your movements.',
   });
 }
