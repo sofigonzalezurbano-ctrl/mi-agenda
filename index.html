@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>My Agenda</title>
+  <meta name="theme-color" content="#f5efe4">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" aria-label="Main navigation">
+      <div class="brand">my agenda<span class="brand-dot"></span></div>
+      <p class="nav-label">Overview</p>
+      <nav class="side-nav">
+        <a href="#today" data-route="today"><span data-icon="home"></span>Today</a>
+        <a href="#calendar" data-route="calendar"><span data-icon="calendar"></span>Calendar</a>
+      </nav>
+      <p class="nav-label">Work</p>
+      <nav class="side-nav">
+        <a href="#donbosco" data-route="donbosco"><span class="nav-dot j-donbosco"></span>Don Bosco</a>
+        <a href="#foureleven" data-route="foureleven"><span class="nav-dot j-movita"></span>4 Eleven Media</a>
+        <a href="#online" data-route="online"><span class="nav-dot j-online"></span>Online Classes</a>
+      </nav>
+      <p class="nav-label">Personal</p>
+      <nav class="side-nav">
+        <a href="#needs" data-route="needs"><span data-icon="bag"></span>Things I need</a>
+        <a href="#finances" data-route="finances"><span data-icon="wallet"></span>Finances</a>
+      </nav>
+      <div class="side-bottom">
+        <button class="side-btn" data-action="quick-add"><span data-icon="plus"></span>Quick add</button>
+        <button class="side-btn" data-action="settings"><span data-icon="settings"></span>Settings &amp; backup</button>
+      </div>
+    </aside>
+
+    <main id="view" class="main" tabindex="-1"></main>
+  </div>
+
+  <nav class="bottom-nav" aria-label="Main navigation">
+    <a href="#today" data-route="today" aria-label="Today"><span data-icon="home"></span></a>
+    <a href="#calendar" data-route="calendar" aria-label="Calendar"><span data-icon="calendar"></span></a>
+    <button class="fab" data-action="quick-add" aria-label="Quick add"><span data-icon="plus"></span></button>
+    <a href="#donbosco" data-route="work" aria-label="Work"><span data-icon="briefcase"></span></a>
+    <a href="#needs" data-route="personal" aria-label="Personal"><span data-icon="user"></span></a>
+  </nav>
+
+  <div id="modal-root" class="modal-root"></div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="js/helpers.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/forms.js"></script>
+  <script src="js/view-today.js"></script>
+  <script src="js/view-calendar.js"></script>
+  <script src="js/view-work.js"></script>
+  <script src="js/view-personal.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
