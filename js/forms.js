@@ -508,7 +508,7 @@ function debtForm(d) {
     title: d ? 'Edit debt' : 'New debt',
     values: d || { currency: 'USD', repeat: 'once', dueDate: todayISO() },
     fields: [
-      { name: 'creditor', label: 'Who do you owe?', required: true, placeholder: 'e.g. Cashea, Mom, Bank', suggestions: DEBT_SUGGESTIONS },
+      { name: 'creditor', label: 'Who or what do you owe?', required: true, placeholder: 'Write it here — e.g. Cashea, Mom, Bank' },
       { name: 'description', label: 'What is it for? (optional)', placeholder: 'e.g. Laptop' },
       { name: 'amount', label: 'Total owed', type: 'number', half: true, required: true },
       { name: 'currency', label: 'Currency', type: 'select', options: currencyOptions(), half: true },
