@@ -85,6 +85,46 @@ function ratePanel() {
   </section>`;
 }
 
+function debtRow(d) {
+  const s = debtStatus(d);
+  const pct = d.amount > 0 ? Math.min(100, (s.paid / d.amount) * 100) : 0;
+  const when = s.done ? 'Paid off 🎉' : s.overdue ? `Overdue since ${fmtDate(s.nextDue)}` : `Pay ${relDay(s.nextDue).toLowerCase() === 'today' ? 'today' : 'by ' + fmtDate(s.nextDue)}`;
+  const plan = d.repeat === 'monthly' ? `${d.installment ? money(d.installment, d.currency) + '/month' : 'Monthly'}` : 'One payment';
+  return `<div class="debt ${s.done ? 'paid' : s.overdue ? 'overdue' : ''}">
+    <div class="debt-top">
+      <div class="debt-main" data-action="edit-debt" data-id="${d.id}">
+        <div class="row-title">${esc(d.creditor)}${d.description ? ` <span class="muted">· ${esc(d.description)}</span>` : ''}</div>
+        <div class="row-meta"><span class="debt-when">${when}</span><span class="chip outline">${plan}</span></div>
+      </div>
+      ${s.done ? '' : `<button class="btn btn-dark btn-sm" data-action="pay-debt" data-id="${d.id}">${icon('check')}Pay</button>`}
+    </div>
+    <div class="bar" role="progressbar" aria-valuenow="${Math.round(pct)}" aria-valuemin="0" aria-valuemax="100" aria-label="Paid"><i style="width:${pct}%"></i></div>
+    <div class="debt-nums small"><span><b>${money(s.remaining, d.currency)}</b> left</span><span class="muted">${money(s.paid, d.currency)} of ${money(d.amount, d.currency)} paid</span></div>
+  </div>`;
+}
+
+function debtsSection() {
+  const debts = Store.data.debts;
+  const active = debts.filter((d) => !debtStatus(d).done)
+    .sort((a, b) => debtStatus(a).nextDue.localeCompare(debtStatus(b).nextDue));
+  const paid = debts.filter((d) => debtStatus(d).done);
+  const owed = (cur) => active.filter((d) => d.currency === cur).reduce((s, d) => s + debtStatus(d).remaining, 0);
+  const usd = owed('USD'), ves = owed('VES');
+  const eq = toUSD(ves, 'VES');
+  const next = active[0];
+  return `<section class="card" style="margin-bottom:16px">
+    <div class="card-head"><h2>Debts</h2><button class="btn btn-light btn-sm" data-action="new-debt">${icon('plus')}Debt</button></div>
+    ${active.length ? `<div class="debt-summary">
+        <div><span class="small muted">You owe</span><div class="big-num">${[usd ? money(usd, 'USD') : '', ves ? money(ves, 'VES') : ''].filter(Boolean).join(' + ')}</div>
+          ${usd && ves && eq !== null ? `<span class="small muted">≈ ${money(usd + eq, 'USD')} total</span>` : ''}</div>
+        <div><span class="small muted">Next payment</span><div class="next-pay ${debtStatus(next).overdue ? 'danger' : ''}"><b>${esc(next.creditor)}</b> · ${relDay(debtStatus(next).nextDue)} · ${money(debtInstallmentAmount(next), next.currency)}</div></div>
+      </div>` : ''}
+    <div class="debt-list">${active.map(debtRow).join('') || emptyState(debts.length ? 'No debts left — you’re free! 🎉' : 'Add what you owe and when you have to pay it. Payment dates show up in your calendar.', 'wallet')}</div>
+    ${paid.length ? `<details class="done-list" data-key="debts-paid" ${App.openDetails.has('debts-paid') ? 'open' : ''}>
+      <summary class="group-title">Paid off <span class="count">${paid.length}</span></summary><div class="debt-list">${paid.map(debtRow).join('')}</div></details>` : ''}
+  </section>`;
+}
+
 function walletCard(cur, T) {
   const row = (label, v, cls = '') => `<div class="wallet-row ${cls}"><span>${label}</span><span class="amt">${money(v, cur)}</span></div>`;
   const eq = cur === 'VES' && T.balance.vesEq !== null && (T.income.VES || T.expense.VES || T.saving.VES)
@@ -165,6 +205,8 @@ function viewFinances() {
     </div>
     ${noRate ? '<p class="small" style="margin:10px 0 0">Bs amounts need an exchange rate — tap “Update now” above.</p>' : ''}
   </section>
+
+  ${debtsSection()}
 
   <div class="grid grid-2" style="margin-bottom:16px;align-items:start">
     ${walletCard('VES', T)}

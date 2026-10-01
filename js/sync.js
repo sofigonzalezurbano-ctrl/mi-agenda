@@ -13,7 +13,7 @@
  * made on another device (even while this one was offline) are not undone.
  */
 
-const SYNC_COLLS = ['tasks', 'students', 'incidents', 'meetings', 'onlineStudents', 'classes', 'needs', 'transactions', 'goals'];
+const SYNC_COLLS = ['tasks', 'students', 'incidents', 'meetings', 'onlineStudents', 'classes', 'needs', 'transactions', 'goals', 'debts'];
 const DEVICE_ONLY_SETTINGS = ['rateFetchedAt', 'rateError'];
 
 /** JSON with sorted keys, so the same record always produces the same text. */

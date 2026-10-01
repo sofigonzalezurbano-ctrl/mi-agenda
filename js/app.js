@@ -68,13 +68,18 @@ const ACTIONS = {
   },
   'edit-task': (el) => taskForm(Store.get('tasks', ds(el).id)),
   'toggle-task': (el) => { toggleAgendaItem('task', ds(el).id); },
-  'toggle-item': (el) => { const d = ds(el); toggleAgendaItem(d.kind, d.id, d.date); },
+  'toggle-item': (el) => {
+    const d = ds(el);
+    if (d.kind === 'debt') { if (el.getAttribute('aria-pressed') === 'true') toast('Already paid — see Finances'); else payDebtForm(d.id); return; }
+    toggleAgendaItem(d.kind, d.id, d.date);
+  },
   'open-item': (el) => {
     const { kind, id, date } = ds(el);
     if (kind === 'task') taskForm(Store.get('tasks', id));
     else if (kind === 'meeting') meetingForm(Store.get('meetings', id));
     else if (kind === 'class') classLogForm(id, date);
     else if (kind === 'need') needForm(Store.get('needs', id));
+    else if (kind === 'debt') debtForm(Store.get('debts', id));
   },
   /* quick-add shortcuts */
   'qa-task-donbosco': (el) => taskForm(null, { jobs: ['donbosco'], date: ds(el).date }),
@@ -130,6 +135,9 @@ const ACTIONS = {
   'new-goal': () => goalForm(),
   'edit-goal': (el) => goalForm(Store.get('goals', ds(el).id)),
   'edit-rate': () => rateForm(),
+  'new-debt': () => debtForm(),
+  'edit-debt': (el) => debtForm(Store.get('debts', ds(el).id)),
+  'pay-debt': (el) => payDebtForm(ds(el).id),
   'rate-refresh': () => {
     toast('Checking BCV rate…');
     refreshBCVRate({ force: true }).then(() => {

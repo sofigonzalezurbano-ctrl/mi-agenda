@@ -405,8 +405,10 @@ function txForm(tx, defaults = {}) {
   if (!tx && base.type === 'income') base.currency = SOURCE_CURRENCY[base.source] || 'USD';
   const values = tx ? { ...tx, category_in: tx.category, category_ex: tx.category } : base;
   const goalOpts = [['', 'General savings'], ...Store.data.goals.map((g) => [g.id, g.name])];
+  const debtOpts = [['', 'Not linked to a debt'], ...Store.data.debts
+    .filter((d) => !debtStatus(d).done || d.id === values.debtId).map((d) => [d.id, d.creditor + (d.description ? ' · ' + d.description : '')])];
   openForm({
-    title: tx ? 'Edit movement' : 'New movement',
+    title: tx ? 'Edit movement' : defaults.debtId ? 'Pay debt' : 'New movement',
     values,
     fields: [
       { name: 'type', label: 'Type', type: 'pills', options: [['income', 'Income'], ['expense', 'Expense'], ['saving', 'Saving']] },
@@ -417,6 +419,7 @@ function txForm(tx, defaults = {}) {
       { name: 'hint', type: 'html', cls: 'small', html: '<span data-conv-hint></span>' },
       { name: 'category_ex', label: 'Category', type: 'select', options: EXPENSE_CATS, show: (v) => v.type === 'expense' },
       { name: 'goalId', label: 'Savings goal', type: 'select', options: goalOpts, show: (v) => v.type === 'saving' },
+      { name: 'debtId', label: 'Which debt?', type: 'select', options: debtOpts, show: (v) => v.type === 'expense' && v.category_ex === 'Debt payment' },
       { name: 'date', label: 'Date', type: 'date', required: true },
       { name: 'note', label: 'Note', placeholder: 'Optional description' },
     ],
@@ -437,9 +440,11 @@ function txForm(tx, defaults = {}) {
         category: v.type === 'income' ? v.category_in : v.type === 'expense' ? v.category_ex : 'Savings',
         source: v.type === 'income' ? v.source : null,
         goalId: v.type === 'saving' ? v.goalId || null : null,
+        debtId: v.type === 'expense' && v.category_ex === 'Debt payment' ? v.debtId || null : null,
       };
       if (tx) Store.update('transactions', tx.id, rec); else Store.add('transactions', rec);
-      toast(tx ? 'Movement updated' : 'Movement added');
+      const debt = rec.debtId && Store.get('debts', rec.debtId);
+      toast(tx ? 'Movement updated' : debt ? (debtStatus(debt).done ? `${debt.creditor} is fully paid! 🎉` : 'Payment recorded') : 'Movement added');
     },
     onDelete: tx ? () => {
       // Keep the linked class in sync if this payment came from an online class.
@@ -451,6 +456,45 @@ function txForm(tx, defaults = {}) {
   // Live conversion while typing the amount.
   form.addEventListener('input', () => {
     $('[data-conv-hint]', form).textContent = conversionHint(Number(form.elements.amount.value), form.elements.currency.value, form.elements.date.value);
+  });
+}
+
+function debtForm(d) {
+  openForm({
+    title: d ? 'Edit debt' : 'New debt',
+    values: d || { currency: 'USD', repeat: 'once', dueDate: todayISO() },
+    fields: [
+      { name: 'creditor', label: 'Who do you owe?', required: true, placeholder: 'e.g. Mom, Bank, Credit card' },
+      { name: 'description', label: 'What is it for? (optional)', placeholder: 'e.g. Laptop' },
+      { name: 'amount', label: 'Total owed', type: 'number', half: true, required: true },
+      { name: 'currency', label: 'Currency', type: 'select', options: currencyOptions(), half: true },
+      { name: 'repeat', label: 'How do you pay it?', type: 'pills', options: [['once', 'All at once'], ['monthly', 'Monthly installments']] },
+      { name: 'installment', label: 'Monthly payment', type: 'number', half: true, show: (v) => v.repeat === 'monthly' },
+      { name: 'dueDate', label: 'When do you have to pay?', type: 'date', half: true, required: true },
+      { name: 'dueHint', type: 'html', cls: 'small', html: 'For monthly installments, this is the date of the next payment — it repeats on the same day every month.', show: (v) => v.repeat === 'monthly' },
+      { name: 'notes', label: 'Notes', type: 'textarea' },
+    ],
+    onSave: (v) => {
+      if (v.repeat !== 'monthly') v.installment = null;
+      if (d) Store.update('debts', d.id, v); else Store.add('debts', v);
+      toast(d ? 'Debt updated' : 'Debt added');
+    },
+    onDelete: d ? () => {
+      Store.data.transactions.forEach((t) => { if (t.debtId === d.id) t.debtId = null; });
+      Store.remove('debts', d.id);
+    } : null,
+    deleteConfirm: 'Delete this debt? Payments you already made stay in your movements.',
+  });
+}
+
+function payDebtForm(id) {
+  const d = Store.get('debts', id);
+  if (!d) return;
+  const s = debtStatus(d);
+  if (s.done) { toast(`${d.creditor} is already paid off`); return; }
+  txForm(null, {
+    type: 'expense', category_ex: 'Debt payment', debtId: d.id, currency: d.currency,
+    amount: Math.round(debtInstallmentAmount(d, s) * 100) / 100, note: `Payment to ${d.creditor}`,
   });
 }
 
@@ -507,6 +551,7 @@ function quickAdd(date = todayISO()) {
       ${opt('qa-task-personal', 'personal', 'star', 'Personal task')}
       ${opt('new-need', 'personal', 'bag', 'Something I need')}
       ${opt('new-tx', 'other', 'wallet', 'Money movement')}
+      ${opt('new-debt', 'personal', 'dollar', 'Debt to pay')}
     </div>`);
 }
 

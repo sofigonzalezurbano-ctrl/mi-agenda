@@ -15,6 +15,7 @@ function emptyData() {
     needs: [],          // {id, title, priority, cost, currency, date, notes, done}
     transactions: [],   // {id, type: income|expense|saving, amount, currency, rate (Bs per USD, for VES), category, source, goalId, date, note}
     goals: [],          // {id, name, target, currency, deadline}
+    debts: [],          // {id, creditor, description, amount, currency, installment, repeat: once|monthly, dueDate, notes}
     rates: {},          // date -> Bs per USD (BCV history)
     settings: { name: 'Sofia', rate: 0, rateDate: null, rateSource: null, rateFetchedAt: 0, rateError: null },
   };
@@ -175,6 +176,16 @@ function agendaFor(iso) {
       sub: log.topic ? 'Topic: ' + log.topic : 'Online class',
     });
   });
+  d.debts.forEach((debt) => {
+    const k = debtOccurrenceOn(debt, iso);
+    if (k < 0) return;
+    const s = debtStatus(debt);
+    const done = debt.repeat === 'monthly' ? k < s.payments : s.remaining <= 0;
+    items.push({
+      kind: 'debt', id: debt.id, date: iso, title: `Pay ${debt.creditor}`, job: 'personal', time: null, done, priority: 'high',
+      sub: money(debtInstallmentAmount(debt, s) || debt.amount, debt.currency),
+    });
+  });
   d.needs.filter((n) => n.date === iso).forEach((n) => items.push({
     kind: 'need', id: n.id, date: iso, title: n.title, job: 'personal', time: null, done: !!n.done, priority: n.priority,
     sub: 'Things I need',
@@ -207,6 +218,47 @@ function toggleAgendaItem(kind, id, date) {
 function overdueTasks() {
   const t = todayISO();
   return Store.data.tasks.filter((x) => !x.recurring && !x.done && x.date && x.date < t).sort(byPriority);
+}
+
+/* ---- Debts ---- */
+const debtPayments = (debt) => Store.data.transactions.filter((t) => t.debtId === debt.id);
+
+/** Paid so far (in the debt's currency), what is left, and the next date to pay. */
+function debtStatus(debt) {
+  const pays = debtPayments(debt);
+  const paid = pays.reduce((sum, t) => {
+    const cur = t.currency || 'USD';
+    if (cur === debt.currency) return sum + Number(t.amount || 0);
+    const r = txRate(t);
+    if (!r) return sum;
+    return sum + (debt.currency === 'VES' ? Number(t.amount) * r : Number(t.amount) / r);
+  }, 0);
+  const remaining = Math.max(0, Number(debt.amount || 0) - paid);
+  const done = remaining <= 0.005;
+  // Monthly debts: each payment covers one month, so the next due date moves forward one month per payment.
+  const nextDue = done ? null : debt.repeat === 'monthly' ? addMonthsKeepDay(debt.dueDate, pays.length) : debt.dueDate;
+  return { paid, remaining: done ? 0 : remaining, payments: pays.length, nextDue, done, overdue: !!nextDue && nextDue < todayISO() };
+}
+
+/** What the next payment should be: the installment (or what is left, if less), else the whole remaining amount. */
+function debtInstallmentAmount(debt, s = debtStatus(debt)) {
+  if (debt.repeat === 'monthly' && debt.installment > 0) return s.remaining > 0 ? Math.min(debt.installment, s.remaining) : debt.installment;
+  return s.remaining;
+}
+
+/** Which installment (0, 1, 2…) falls on this date, or -1. Paid ones stay visible; future ones only while money is owed. */
+function debtOccurrenceOn(debt, iso) {
+  if (!debt.dueDate || iso < debt.dueDate) return -1;
+  if (debt.repeat !== 'monthly') return iso === debt.dueDate ? 0 : -1;
+  const [y0, m0] = debt.dueDate.split('-').map(Number);
+  const [y1, m1] = iso.split('-').map(Number);
+  const k = (y1 - y0) * 12 + (m1 - m0);
+  if (addMonthsKeepDay(debt.dueDate, k) !== iso) return -1;
+  const s = debtStatus(debt);
+  if (k < s.payments) return k;
+  if (s.done) return -1;
+  const left = debt.installment > 0 ? Math.ceil(s.remaining / debt.installment) : Infinity;
+  return k < s.payments + left ? k : -1;
 }
 
 /* ---- Finances ---- */

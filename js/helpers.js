@@ -24,7 +24,7 @@ const PRIORITIES = {
 const INCIDENT_TYPES = ['Behavior', 'Academic', 'Missing homework', 'Tardiness / Absence', 'Health', 'Uniform', 'Conflict with peers', 'Other'];
 const SEVERITIES = { minor: 'Minor', moderate: 'Moderate', serious: 'Serious' };
 
-const EXPENSE_CATS = ['Food & groceries', 'Transport', 'Bills & services', 'Rent / Housing', 'Health', 'Shopping', 'Education', 'Entertainment', 'Family', 'Phone & internet', 'Other'];
+const EXPENSE_CATS = ['Food & groceries', 'Transport', 'Bills & services', 'Rent / Housing', 'Health', 'Shopping', 'Education', 'Entertainment', 'Family', 'Phone & internet', 'Debt payment', 'Other'];
 const INCOME_CATS = ['Salary', 'Online classes', 'Freelance', 'Bonus', 'Other'];
 const INCOME_SOURCES = { donbosco: 'Don Bosco', foureleven: '4 Eleven Media', online: 'Online Classes', other: 'Other' };
 /** Currency each job pays in (used as the default when recording income). */
@@ -46,6 +46,13 @@ const toISO = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDat
 const fromISO = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
 const todayISO = () => toISO(new Date());
 const addDays = (iso, n) => { const d = fromISO(iso); d.setDate(d.getDate() + n); return toISO(d); };
+/** Same day n months later, clamped to the month's last day (Jan 31 + 1 month = Feb 28/29). */
+function addMonthsKeepDay(iso, n) {
+  const [y, m, d] = iso.split('-').map(Number);
+  const t = new Date(y, m - 1 + n, 1);
+  t.setDate(Math.min(d, new Date(t.getFullYear(), t.getMonth() + 1, 0).getDate()));
+  return toISO(t);
+}
 const addMonths = (iso, n) => { const d = fromISO(iso); d.setDate(1); d.setMonth(d.getMonth() + n); return toISO(d); };
 const weekday = (iso) => fromISO(iso).getDay();
 /** Monday of the week containing iso */

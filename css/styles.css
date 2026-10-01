@@ -342,6 +342,18 @@ details[open].done-list summary::after { content: "–"; }
 .wallet-row.total { border-bottom: 0; font-weight: 700; font-size: 16px; }
 .wallet-row.in .amt { color: #3f8a4e; } .wallet-row.out .amt { color: #c0392b; } .wallet-row.save .amt { color: #3a6fc9; }
 .tx-amt { display: flex; flex-direction: column; align-items: flex-end; flex: none; }
+.debt-summary { display: flex; gap: 24px; flex-wrap: wrap; justify-content: space-between; background: var(--surface-2); border-radius: 18px; padding: 14px 16px; margin-bottom: 12px; }
+.next-pay { font-size: 14px; margin-top: 4px; }
+.debt-list { display: flex; flex-direction: column; gap: 8px; }
+.debt { background: #fff; border-radius: 18px; padding: 14px; display: flex; flex-direction: column; gap: 8px; border-left: 4px solid var(--p-low); }
+.debt.overdue { border-left-color: var(--p-high); }
+.debt.overdue .debt-when { color: #c0392b; font-weight: 600; }
+.debt.paid { opacity: .7; }
+.debt-top { display: flex; gap: 12px; align-items: center; }
+.debt-main { flex: 1; min-width: 0; cursor: pointer; }
+.debt .bar { height: 8px; background: var(--surface-2); }
+.debt .bar > i { background: linear-gradient(90deg, #c7d9a4, #7f9a47); }
+.debt-nums { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .goal { border-radius: 20px; padding: 16px; background: #fff; display: flex; flex-direction: column; gap: 8px; }
 .goal .top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .goal .name { font-weight: 600; }

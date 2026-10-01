@@ -123,6 +123,7 @@ function viewToday() {
   const today = todayISO();
   const items = agendaFor(today);
   const overdue = overdueTasks();
+  const overdueDebts = Store.data.debts.filter((d) => debtStatus(d).overdue);
   const pending = items.filter((i) => !i.done);
   const done = items.filter((i) => i.done);
 
@@ -182,10 +183,16 @@ function viewToday() {
           <div class="list">${done.map((i) => agendaRow(i)).join('')}</div></details>` : ''}
       </section>
 
-      ${overdue.length ? `
+      ${overdue.length || overdueDebts.length ? `
       <section class="card c-pink" aria-labelledby="od-h">
-        <div class="card-head"><h2 id="od-h">Overdue</h2><span class="muted">${overdue.length} task${overdue.length > 1 ? 's' : ''}</span></div>
-        <div class="list">${overdue.map((t) => taskRow(t)).join('')}</div>
+        <div class="card-head"><h2 id="od-h">Overdue</h2><span class="muted">${overdue.length + overdueDebts.length} item${overdue.length + overdueDebts.length > 1 ? 's' : ''}</span></div>
+        <div class="list">${overdueDebts.map((d) => {
+          const s = debtStatus(d);
+          return `<div class="row j-personal"><div class="row-main" data-action="edit-debt" data-id="${d.id}">
+            <div class="row-title">Pay ${esc(d.creditor)} · ${money(debtInstallmentAmount(d, s), d.currency)}</div>
+            <div class="row-meta"><span class="chip outline">Debt</span><span class="danger">Was due ${fmtDate(s.nextDue)}</span></div></div>
+            <button class="btn btn-dark btn-sm" data-action="pay-debt" data-id="${d.id}">Pay</button></div>`;
+        }).join('')}${overdue.map((t) => taskRow(t)).join('')}</div>
       </section>` : ''}
 
       <section class="card" aria-labelledby="tm-h">
