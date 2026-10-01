@@ -459,6 +459,50 @@ function txForm(tx, defaults = {}) {
   });
 }
 
+function exchangeForm(tx) {
+  openForm({
+    title: tx ? 'Edit dollar exchange' : 'Buy / sell dollars',
+    values: tx || { direction: 'buy', exRate: currentRate() ? Math.round(currentRate() * 100) / 100 : null, method: 'Binance', date: todayISO() },
+    fields: [
+      { name: 'direction', label: 'What did you do?', type: 'pills', options: [['buy', 'Bought $ (paid Bs)'], ['sell', 'Sold $ (got Bs)']] },
+      { name: 'usd', label: 'Dollars', type: 'number', half: true, required: true },
+      { name: 'exRate', label: 'Rate (Bs per $1)', type: 'number', half: true, required: true },
+      { name: 'ves', label: 'Bolívares', type: 'number', half: true, required: true },
+      { name: 'method', label: 'How?', type: 'select', options: EXCHANGE_METHODS, half: true },
+      { name: 'cmp', type: 'html', cls: 'small', html: '<span data-ex-hint></span>' },
+      { name: 'date', label: 'Date', type: 'date', required: true },
+      { name: 'note', label: 'Note', placeholder: 'Optional (e.g. who you traded with)' },
+    ],
+    onSave: (v) => {
+      const rec = { type: 'exchange', direction: v.direction, usd: v.usd, ves: v.ves, exRate: v.exRate || (v.usd ? v.ves / v.usd : null), method: v.method, date: v.date, note: v.note };
+      if (tx) Store.update('transactions', tx.id, rec); else Store.add('transactions', rec);
+      toast(v.direction === 'buy' ? `Bought ${money(v.usd, 'USD')}` : `Sold ${money(v.usd, 'USD')}`);
+    },
+    onDelete: tx ? () => Store.remove('transactions', tx.id) : null,
+  });
+  const form = $('#modal-root form');
+  const el = form.elements;
+  const hint = () => {
+    const bcv = rateOn(el.date.value || todayISO());
+    const r = Number(el.exRate.value);
+    const box = $('[data-ex-hint]', form);
+    if (!bcv || !r) { box.textContent = bcv ? `BCV rate: ${money(bcv, 'VES')} per $1` : ''; return; }
+    const diff = ((r - bcv) / bcv) * 100;
+    const buying = form.querySelector('input[name="direction"]:checked').value === 'buy';
+    const good = buying ? diff < 0 : diff > 0;
+    box.innerHTML = `BCV rate that day: <b>${money(bcv, 'VES')}</b> · yours is ${Math.abs(diff).toFixed(1)}% ${diff >= 0 ? 'higher' : 'lower'}${Math.abs(diff) >= 0.1 ? (good ? ' — good deal ✓' : '') : ''}`;
+  };
+  // Keep dollars × rate = bolívares: editing dollars or rate updates Bs; editing Bs updates the rate.
+  form.addEventListener('input', (e) => {
+    const usd = Number(el.usd.value), rate = Number(el.exRate.value), ves = Number(el.ves.value);
+    if ((e.target.name === 'usd' || e.target.name === 'exRate') && usd && rate) el.ves.value = (usd * rate).toFixed(2);
+    if (e.target.name === 'ves' && usd && ves) el.exRate.value = (ves / usd).toFixed(2);
+    hint();
+  });
+  form.addEventListener('change', hint);
+  hint();
+}
+
 function debtForm(d) {
   openForm({
     title: d ? 'Edit debt' : 'New debt',
@@ -559,6 +603,7 @@ function quickAdd(date = todayISO()) {
       ${opt('new-need', 'personal', 'bag', 'Something I need')}
       ${opt('new-tx', 'other', 'wallet', 'Money movement')}
       ${opt('new-debt', 'personal', 'dollar', 'Debt to pay')}
+      ${opt('new-exchange', 'alas', 'refresh', 'Buy / sell $')}
     </div>`);
 }
 

@@ -20,7 +20,7 @@ Doble clic en `index.html` (se abre en el navegador). No necesita internet, salv
 | **4 Eleven Media** | Tareas (únicas o fijas) por restaurante: Movita Juice Bar, Alas Kitchen, La Casita Mexicana, o "All 3 restaurants" para tareas de los tres |
 | **Online Classes** | Estudiantes y horario semanal: días y horas (puede ser una hora distinta por día), notas por clase |
 | **Things I need** | Lista de cosas que necesito con prioridad y costo estimado, y tareas personales |
-| **Finances** | Tasa oficial BCV automática (+ convertidor), billeteras separadas en Bs y USD, total del mes en dólares (cada movimiento en Bs se convierte a la tasa de su día), ingresos por trabajo, gastos por categoría, metas de ahorro, deudas (pago único o cuotas mensuales, con fechas en el calendario) |
+| **Finances** | Tasa oficial BCV automática (+ convertidor), billeteras separadas en Bs y USD, total del mes en dólares (cada movimiento en Bs se convierte a la tasa de su día), ingresos por trabajo, gastos por categoría, metas de ahorro, deudas (pago único, cada 2 semanas o mensual, con fechas en el calendario), compra/venta de dólares (Binance, efectivo, Zelle…) |
 
 ### Colores
 

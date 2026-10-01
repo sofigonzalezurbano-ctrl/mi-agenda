@@ -13,7 +13,8 @@ function emptyData() {
     classes: [],        // {id, studentId, subject, startDate, time, times{weekday: time}|null, recurring, days[], endDate, notes}
     classLogs: {},      // "classId|date" -> {done, topic, homework, notes}
     needs: [],          // {id, title, priority, cost, currency, date, notes, done}
-    transactions: [],   // {id, type: income|expense|saving, amount, currency, rate (Bs per USD, for VES), category, source, goalId, date, note}
+    transactions: [],   // {id, type: income|expense|saving, amount, currency, rate (Bs per USD, for VES), category, source, goalId, debtId, date, note}
+                        // or {id, type: 'exchange', direction: buy|sell, usd, ves, exRate, method, date, note} (buying/selling dollars)
     goals: [],          // {id, name, target, currency, deadline}
     debts: [],          // {id, creditor, description, amount, currency, installment, repeat: once|monthly, dueDate, notes}
     rates: {},          // date -> Bs per USD (BCV history)
@@ -360,6 +361,21 @@ function financeTotals(txs) {
   const eq = [out.income.eq, out.expense.eq, out.saving.eq].includes(null) ? null : out.income.eq - out.expense.eq - out.saving.eq;
   const vesEq = [out.income.vesEq, out.expense.vesEq, out.saving.vesEq].includes(null) ? null : out.income.vesEq - out.expense.vesEq - out.saving.vesEq;
   out.balance = { USD: bal('USD'), VES: bal('VES'), vesEq, eq };
+
+  // Buying/selling dollars moves money between the two wallets (not income or expense).
+  const ex = { USD: 0, VES: 0, vesEq: 0 };
+  txs.filter((t) => t.type === 'exchange').forEach((t) => {
+    const sign = t.direction === 'sell' ? -1 : 1; // buy: +$ / −Bs
+    ex.USD += sign * Number(t.usd || 0);
+    ex.VES -= sign * Number(t.ves || 0);
+    const r = rateOn(t.date);
+    ex.vesEq = ex.vesEq === null || !r ? null : ex.vesEq - (sign * Number(t.ves || 0)) / r;
+  });
+  out.exchange = ex;
+  out.balance.USD += ex.USD;
+  out.balance.VES += ex.VES;
+  if (out.balance.vesEq !== null) out.balance.vesEq = ex.vesEq === null ? null : out.balance.vesEq + ex.vesEq;
+  if (out.balance.eq !== null) out.balance.eq = ex.vesEq === null ? null : out.balance.eq + ex.USD + ex.vesEq;
   return out;
 }
 

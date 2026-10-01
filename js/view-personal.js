@@ -128,7 +128,7 @@ function debtsSection() {
 
 function walletCard(cur, T) {
   const row = (label, v, cls = '') => `<div class="wallet-row ${cls}"><span>${label}</span><span class="amt">${money(v, cur)}</span></div>`;
-  const eq = cur === 'VES' && T.balance.vesEq !== null && (T.income.VES || T.expense.VES || T.saving.VES)
+  const eq = cur === 'VES' && T.balance.vesEq !== null && (T.income.VES || T.expense.VES || T.saving.VES || T.exchange.VES)
     ? `<div class="small muted" style="text-align:right">Balance ≈ ${money(T.balance.vesEq, 'USD')}</div>` : '';
   return `<section class="card wallet ${cur === 'VES' ? 'c-soft j-donbosco' : 'c-soft j-movita'}">
     <div class="card-head"><h2>${cur === 'VES' ? 'Bolívares' : 'Dollars'}</h2>
@@ -136,9 +136,46 @@ function walletCard(cur, T) {
     ${row('Income', T.income[cur], 'in')}
     ${row('Expenses', -T.expense[cur], 'out')}
     ${row('Saved', -T.saving[cur], 'save')}
+    ${T.exchange[cur] ? row(cur === 'USD' ? (T.exchange.USD > 0 ? 'Bought $' : 'Sold $') : (T.exchange.VES > 0 ? 'From selling $' : 'Spent buying $'), T.exchange[cur], 'ex') : ''}
     ${row('Balance', T.balance[cur], 'total')}
     ${eq}
   </section>`;
+}
+
+function exchangeSection(txs) {
+  const ex = txs.filter((t) => t.type === 'exchange');
+  const side = (dir) => {
+    const list = ex.filter((t) => t.direction === dir);
+    const usd = list.reduce((s, t) => s + Number(t.usd || 0), 0);
+    const ves = list.reduce((s, t) => s + Number(t.ves || 0), 0);
+    return { n: list.length, usd, ves, avg: usd ? ves / usd : 0 };
+  };
+  const b = side('buy'), s = side('sell');
+  const methods = {};
+  ex.forEach((t) => { methods[t.method || 'Other'] = (methods[t.method || 'Other'] || 0) + Number(t.usd || 0); });
+  return `<section class="card" style="margin-bottom:16px">
+    <div class="card-head"><h2>Buy / sell dollars</h2><button class="btn btn-light btn-sm" data-action="new-exchange">${icon('plus')}Exchange</button></div>
+    ${ex.length ? `<div class="grid grid-2">
+        <div class="ex-box buy"><span class="small muted">Bought this month</span><div class="big-num">${money(b.usd, 'USD')}</div>
+          <span class="small muted">${b.n ? `paid ${money(b.ves, 'VES')} · avg ${money(b.avg, 'VES')}/$` : '—'}</span></div>
+        <div class="ex-box sell"><span class="small muted">Sold this month</span><div class="big-num">${money(s.usd, 'USD')}</div>
+          <span class="small muted">${s.n ? `got ${money(s.ves, 'VES')} · avg ${money(s.avg, 'VES')}/$` : '—'}</span></div>
+      </div>
+      <div class="chips" style="margin-top:12px">${Object.entries(methods).sort((x, y) => y[1] - x[1]).map(([m, v]) => `<span class="chip outline">${esc(m)} · ${money(v, 'USD')}</span>`).join('')}</div>`
+      : emptyState('Record when you buy or sell dollars (Binance, cash, Zelle…) to keep both wallets right.', 'refresh')}
+  </section>`;
+}
+
+function exchangeRow(t) {
+  const buy = t.direction !== 'sell';
+  return `<div class="row j-alas">
+    <span class="time">${fmtDate(t.date, { month: 'short', day: 'numeric' })}</span>
+    <div class="row-main" data-action="edit-tx" data-id="${t.id}">
+      <div class="row-title">${buy ? 'Bought' : 'Sold'} ${money(t.usd, 'USD')}${t.note ? ` <span class="muted">· ${esc(t.note)}</span>` : ''}</div>
+      <div class="row-meta"><span class="chip">${esc(t.method || 'Other')}</span><span>@ ${money(t.exRate || (t.usd ? t.ves / t.usd : 0), 'VES')}</span></div>
+    </div>
+    <span class="tx-amt"><span class="amt ${buy ? 'in' : 'out'}">${buy ? '+' : '−'} ${money(t.usd, 'USD')}</span><span class="small muted">${buy ? '−' : '+'} ${money(t.ves, 'VES')}</span></span>
+  </div>`;
 }
 
 function viewFinances() {
@@ -181,6 +218,7 @@ function viewFinances() {
   <header class="page-head">
     <div><p class="eyebrow">Personal</p><h1>Finances</h1></div>
     <div class="head-actions">
+      <button class="btn btn-light" data-action="new-exchange">${icon('refresh')}Buy / sell $</button>
       <button class="btn btn-light" data-action="new-tx" data-type="income">${icon('plus')}Income</button>
       <button class="btn btn-dark" data-action="new-tx" data-type="expense">${icon('plus')}Expense</button>
     </div>
@@ -214,6 +252,8 @@ function viewFinances() {
     ${walletCard('USD', T)}
   </div>
 
+  ${exchangeSection(txs)}
+
   <div class="grid grid-2" style="margin-bottom:16px;align-items:start">
     <section class="card">
       <div class="card-head"><h2>Income by job</h2><span class="muted small">≈ USD</span></div>
@@ -242,10 +282,11 @@ function viewFinances() {
   <section class="card">
     <div class="card-head" style="flex-wrap:wrap">
       <h2>Movements</h2>
-      <div class="chips">${[['all', 'All'], ['income', 'Income'], ['expense', 'Expenses'], ['saving', 'Savings']].map(([k, l]) =>
+      <div class="chips">${[['all', 'All'], ['income', 'Income'], ['expense', 'Expenses'], ['saving', 'Savings'], ['exchange', 'Buy/sell $']].map(([k, l]) =>
         `<button class="chip-btn ${ui.type === k ? 'active' : ''}" data-action="fin-type" data-type="${k}">${l}</button>`).join('')}</div>
     </div>
     <div class="list">${filtered.map((t) => {
+      if (t.type === 'exchange') return exchangeRow(t);
       const goal = t.goalId ? Store.get('goals', t.goalId) : null;
       const cls = t.type === 'income' ? SOURCE_JOB_CLASS[t.source] || 'j-other' : t.type === 'saving' ? 'j-alas' : 'j-casita';
       const usd = t.currency === 'VES' ? txUSD(t) : null;
