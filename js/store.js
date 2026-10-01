@@ -43,12 +43,14 @@ const Store = {
     return out;
   },
 
-  save() {
+  /** Persists locally; unless silent (changes that came from the cloud), also sends them to the cloud. */
+  save({ silent = false } = {}) {
     try {
       localStorage.setItem(STORE_KEY, JSON.stringify(this.data));
     } catch (e) {
       toast('Could not save — export a backup!');
     }
+    if (!silent && typeof CloudSync !== 'undefined') CloudSync.onLocalSave();
   },
 
   get(coll, id) { return this.data[coll].find((x) => x.id === id); },

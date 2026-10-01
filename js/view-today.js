@@ -141,6 +141,7 @@ function viewToday() {
       <p class="sub">${esc(quoteOfSession)} ✿</p>
     </div>
     <div class="head-actions">
+      ${syncBadge('pill')}
       <button class="btn btn-dark" data-action="quick-add">${icon('plus')}Add</button>
       <button class="icon-btn" data-action="settings" aria-label="Settings">${icon('settings')}</button>
     </div>

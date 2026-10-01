@@ -54,7 +54,8 @@ const ACTIONS = {
   settings: () => settingsSheet(),
   export: () => exportBackup(),
   reset: () => {
-    if (!confirm('Erase ALL your data? This cannot be undone. (Export a backup first!)')) return;
+    const cloud = CloudSync.uid ? ' It will also be erased from your other synced devices.' : '';
+    if (!confirm(`Erase ALL your data?${cloud} This cannot be undone. (Export a backup first!)`)) return;
     if (!confirm('Are you completely sure?')) return;
     Store.data = emptyData(); Store.save(); closeModal(); App.render(); toast('All data erased');
   },
@@ -232,4 +233,5 @@ $$('[data-icon]').forEach((el) => { el.outerHTML = icon(el.dataset.icon); });
 Store.load();
 window.addEventListener('hashchange', () => App.onRoute());
 App.onRoute();
+CloudSync.setStatus(CloudSync.status);
 autoRate();

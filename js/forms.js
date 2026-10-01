@@ -486,12 +486,14 @@ function settingsSheet() {
   const counts = ['tasks', 'students', 'incidents', 'meetings', 'onlineStudents', 'classes', 'needs', 'transactions']
     .reduce((s, k) => s + Store.data[k].length, 0);
   openSheet('Settings & backup', `
+    ${syncSectionHTML()}
+    <div class="group-title" style="margin-top:22px">You</div>
     <form class="form" id="settings-form">
       <label class="field"><span>Your name</span><input name="name" value="${esc(st.name)}"></label>
       <div class="form-actions"><span class="spacer"></span><button class="btn btn-dark" type="submit">Save name</button></div>
     </form>
     <div class="group-title" style="margin-top:22px">Backup</div>
-    <p class="small muted" style="margin:0 0 12px">Your data (${counts} records) lives only in this browser. Export a backup regularly, and import it to move to another computer or browser.</p>
+    <p class="small muted" style="margin:0 0 12px">Your data (${counts} records) is saved on this device${CloudSync.uid ? ' and synced to your account' : ''}. Export a backup now and then as an extra copy.</p>
     <div class="chips">
       <button class="btn btn-dark btn-sm" data-action="export">${icon('download')}Export backup</button>
       <label class="btn btn-light btn-sm" style="cursor:pointer">${icon('upload')}Import backup<input type="file" accept="application/json,.json" id="import-file" hidden></label>

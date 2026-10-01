@@ -59,3 +59,14 @@ La app está publicada con GitHub Pages en **https://sofigonzalezurbano-ctrl.git
 En el iPhone: abrir en Safari → Compartir → *Agregar a pantalla de inicio*, y usarla siempre desde ese ícono.
 
 Para publicar cambios: hacer commit y `git push`. GitHub actualiza la página en 1–2 minutos.
+
+## Sincronización entre dispositivos
+
+Con Firebase (proyecto `mi-agenda-e3913`): en *Settings & backup → Sync between devices* se inicia sesión
+con correo y contraseña (el mismo en el iPhone y la Mac). Cada registro se guarda como un documento en
+`users/{uid}/records/{colección__id}`; los cambios llegan a los otros dispositivos en segundos y, sin
+internet, se guardan y se envían al reconectar. Las reglas de Firestore solo permiten la cuenta
+`sofigonzalezurbano@gmail.com` con el correo verificado.
+
+Archivos: `js/sync.js` (lógica de mezcla e interfaz) y `js/firebase-backend.js` (Firebase).
+La sincronización solo funciona en la versión publicada (no al abrir `index.html` como archivo).
