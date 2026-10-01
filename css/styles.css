@@ -347,6 +347,7 @@ details[open].done-list summary::after { content: "–"; }
 .nw-split { display: flex; gap: 12px; flex-wrap: wrap; }
 .nw-split > div { background: #2a2826; border-radius: 18px; padding: 12px 16px; min-width: 150px; }
 .nw-num { font-size: 18px; font-weight: 700; color: var(--pink); overflow-wrap: anywhere; }
+.after-debts { margin: 12px 0 0; padding-top: 10px; border-top: 1px solid rgba(0,0,0,.1); color: var(--ink-2); }
 .ex-box { background: var(--surface-2); border-radius: 18px; padding: 14px 16px; display: flex; flex-direction: column; gap: 2px; }
 .ex-box.buy { background: #dcefdc; } .ex-box.sell { background: #fbe1d0; }
 .wallet-row.ex .amt { color: #3a6fc9; }

@@ -166,6 +166,20 @@ function netWorthCard() {
   </section>`;
 }
 
+/** Small line under the month total: balance minus everything still owed (Bs debts at today's BCV rate). */
+function afterDebtsLine(T) {
+  const active = Store.data.debts.filter((d) => !debtStatus(d).done);
+  if (!active.length || T.balance.eq === null) return '';
+  let owed = 0;
+  for (const d of active) {
+    const v = toUSD(debtStatus(d).remaining, d.currency);
+    if (v === null) return '';
+    owed += v;
+  }
+  const left = T.balance.eq - owed;
+  return `<p class="small after-debts">After paying your debts (${money(owed, 'USD')}): <b class="${left < 0 ? 'danger' : ''}">${money(left, 'USD')}</b></p>`;
+}
+
 function exchangeSection(txs) {
   const ex = txs.filter((t) => t.type === 'exchange');
   const side = (dir) => {
@@ -268,6 +282,7 @@ function viewFinances() {
       <div><span class="small muted">Saved</span><div class="big-num">${eqv(T.saving.eq)}</div></div>
       <div><span class="small muted">Balance</span><div class="big-num">${eqv(T.balance.eq)}</div></div>
     </div>
+    ${afterDebtsLine(T)}
     ${noRate ? '<p class="small" style="margin:10px 0 0">Bs amounts need an exchange rate — tap “Update now” above.</p>' : ''}
   </section>
 
