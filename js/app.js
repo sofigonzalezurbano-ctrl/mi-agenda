@@ -19,7 +19,7 @@ const App = {
     cal: { mode: 'month', cursor: todayISO() },
     db: { tab: 'tasks', group: 'all', q: '', incStatus: 'open', incType: 'all' },
     fe: { rest: 'all' },
-    on: { tab: 'schedule', week: startOfWeek(todayISO()), month: monthKey(todayISO()) },
+    on: { tab: 'schedule', week: startOfWeek(todayISO()) },
     fin: { month: monthKey(todayISO()), type: 'all' },
   },
 
@@ -76,13 +76,6 @@ const ACTIONS = {
     else if (kind === 'class') classLogForm(id, date);
     else if (kind === 'need') needForm(Store.get('needs', id));
   },
-  'toggle-paid': (el) => {
-    const { id, date } = ds(el);
-    const paid = !classLog(id, date).paid;
-    setClassPaid(id, date, paid);
-    toast(paid ? 'Marked as paid · added to Finances' : 'Marked as unpaid');
-  },
-
   /* quick-add shortcuts */
   'qa-task-donbosco': (el) => taskForm(null, { jobs: ['donbosco'], date: ds(el).date }),
   'qa-task-foureleven': (el) => taskForm(null, { jobs: FE_JOBS, date: ds(el).date }),
@@ -120,7 +113,6 @@ const ACTIONS = {
   /* Online */
   'on-tab': (el) => { App.ui.on.tab = ds(el).tab; },
   'on-week': (el) => { App.ui.on.week = addDays(App.ui.on.week, Number(ds(el).dir)); },
-  'on-month': (el) => { App.ui.on.month = monthKey(addMonths(App.ui.on.month + '-01', Number(ds(el).dir))); },
   'new-class': (el) => classForm(null, { ...(ds(el).student ? { studentId: ds(el).student } : {}), ...(ds(el).date ? { startDate: ds(el).date } : {}) }),
   'edit-class': (el) => classForm(Store.get('classes', ds(el).id)),
   'new-online-student': () => onlineStudentForm(),
@@ -148,7 +140,7 @@ const ACTIONS = {
 };
 
 /* Actions that only change state inside an open detail sheet: refresh that sheet afterwards. */
-const SHEET_REFRESH = new Set(['toggle-item', 'toggle-incident', 'toggle-paid']);
+const SHEET_REFRESH = new Set(['toggle-item', 'toggle-incident']);
 
 document.addEventListener('click', (e) => {
   if (e.target.closest('[data-close]')) { closeModal(); return; }

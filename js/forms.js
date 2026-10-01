@@ -198,13 +198,11 @@ function meetingRow(m) {
 function onlineStudentForm(s) {
   openForm({
     title: s ? 'Edit online student' : 'New online student',
-    values: s || { currency: SOURCE_CURRENCY.online },
+    values: s || {},
     fields: [
       { name: 'name', label: 'Name', required: true },
       { name: 'contact', label: 'Contact (email / WhatsApp)', half: true },
       { name: 'timezone', label: 'Time zone / country', half: true, placeholder: 'e.g. Spain (CET)' },
-      { name: 'rate', label: 'Default rate per class', type: 'number', half: true },
-      { name: 'currency', label: 'Currency', type: 'select', options: currencyOptions(), half: true },
       { name: 'notes', label: 'Notes (level, goals…)', type: 'textarea' },
     ],
     onSave: (v) => {
@@ -212,46 +210,71 @@ function onlineStudentForm(s) {
       toast(s ? 'Student updated' : 'Student added');
     },
     onDelete: s ? () => removeOnlineStudent(s.id) : null,
-    deleteConfirm: 'Delete this student? Their classes will be deleted too (payments already recorded stay in Finances).',
+    deleteConfirm: 'Delete this student? Their classes will be deleted too.',
   });
 }
 
+const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
+
 function classForm(c, defaults = {}) {
-  if (!requireStudents(Store.data.onlineStudents, () => onlineStudentForm())) return;
-  const firstStudent = onlineStudentById(defaults.studentId) || Store.data.onlineStudents[0];
+  const firstStudent = Store.data.onlineStudents[0];
+  const values = c
+    ? { ...c, date: c.startDate, sameTime: !c.times, days: c.days || [] }
+    : {
+      recurring: true, days: [], sameTime: true, startDate: todayISO(), date: todayISO(),
+      studentId: firstStudent ? firstStudent.id : '__new', ...defaults,
+    };
+  if (!c && defaults.startDate) values.date = defaults.startDate;
+  let formRef = null;
+  const multiDay = (v) => v.recurring && v.days.length > 1;
+
   openForm({
     title: c ? 'Edit class' : 'New online class',
-    values: c || {
-      startDate: todayISO(), duration: 60, recurring: false, days: [],
-      studentId: firstStudent.id, rate: firstStudent.rate, currency: firstStudent.currency || SOURCE_CURRENCY.online, ...defaults,
-    },
+    values,
     fields: [
-      { name: 'studentId', label: 'Student', type: 'select', options: onlineStudentOptions(), required: true },
-      { name: 'subject', label: 'What is the class?', required: true, placeholder: 'e.g. English B1 – conversation' },
-      { name: 'startDate', label: 'Date (first class)', type: 'date', half: true, required: true },
-      { name: 'time', label: 'Time', type: 'time', half: true },
-      { name: 'duration', label: 'Duration (min)', type: 'number', half: true },
-      { name: 'recurring', label: 'Repeats every week', type: 'checkbox', half: true },
-      { name: 'days', label: 'Repeat on', type: 'days', show: (v) => v.recurring },
-      { name: 'endDate', label: 'Ends on (optional)', type: 'date', show: (v) => v.recurring },
-      { name: 'rate', label: 'Rate per class', type: 'number', half: true },
-      { name: 'currency', label: 'Currency', type: 'select', options: currencyOptions(), half: true },
+      { name: 'studentId', label: 'Student', type: 'select', options: [...onlineStudentOptions(), ['__new', '+ New student…']], required: true },
+      { name: 'newStudent', label: 'New student’s name', required: true, show: (v) => v.studentId === '__new' },
+      { name: 'subject', label: 'Class (optional)', placeholder: 'e.g. English conversation' },
+      { name: 'recurring', label: 'Repeats every week', type: 'checkbox' },
+      { name: 'days', label: 'Days', type: 'days', show: (v) => v.recurring },
+      { name: 'sameTime', label: 'Same time every day', type: 'checkbox', show: multiDay },
+      { name: 'time', label: 'Time', type: 'time', half: true, show: (v) => !multiDay(v) || v.sameTime },
+      { name: 'dayTimes', type: 'html', cls: 'day-times-box', html: '<div class="day-times" data-day-times></div>', show: (v) => multiDay(v) && !v.sameTime },
+      { name: 'date', label: 'Date', type: 'date', half: true, required: true, show: (v) => !v.recurring },
+      { name: 'startDate', label: 'Starts on', type: 'date', half: true, show: (v) => v.recurring },
+      { name: 'endDate', label: 'Ends on (optional)', type: 'date', half: true, show: (v) => v.recurring },
       { name: 'notes', label: 'Notes', type: 'textarea' },
     ],
     onChange: (v, form) => {
-      // When choosing a student on a new class, pre-fill their default rate.
-      if (!c && v.studentId !== form.dataset.lastStudent) {
-        const s = onlineStudentById(v.studentId);
-        if (form.dataset.lastStudent && s) {
-          if (s.rate != null) form.elements.rate.value = s.rate;
-          if (s.currency) form.elements.currency.value = s.currency;
-        }
-        form.dataset.lastStudent = v.studentId;
-      }
+      formRef = form;
+      // One time box per selected day; keep what was already typed.
+      const box = $('[data-day-times]', form);
+      const key = v.days.slice().sort().join(',');
+      if (box.dataset.days === key) return;
+      const prev = { ...(c && c.times) };
+      $$('input[data-day]', box).forEach((i) => { prev[i.dataset.day] = i.value; });
+      box.innerHTML = DAY_ORDER.filter((d) => v.days.includes(d)).map((d) =>
+        `<label class="day-time"><span>${WEEKDAYS[d]}</span><input type="time" data-day="${d}" value="${esc(prev[d] || v.time || '')}"></label>`).join('');
+      box.dataset.days = key;
     },
     onSave: (v) => {
-      if (v.recurring && !v.days.length) v.days = [weekday(v.startDate)];
-      if (c) Store.update('classes', c.id, v); else Store.add('classes', v);
+      let studentId = v.studentId;
+      if (studentId === '__new') studentId = Store.add('onlineStudents', { name: v.newStudent }).id;
+      const rec = { studentId, subject: v.subject, recurring: v.recurring, notes: v.notes };
+      if (v.recurring) {
+        const start = v.startDate || todayISO();
+        const days = v.days.length ? v.days : [weekday(start)];
+        let times = null, time = v.time;
+        if (days.length > 1 && !v.sameTime) {
+          times = {};
+          days.forEach((d) => { times[d] = formRef.querySelector(`input[data-day="${d}"]`).value; });
+          time = times[DAY_ORDER.find((d) => days.includes(d))] || '';
+        }
+        Object.assign(rec, { startDate: start, days, endDate: v.endDate, time, times });
+      } else {
+        Object.assign(rec, { startDate: v.date, days: [], endDate: '', time: v.time, times: null });
+      }
+      if (c) Store.update('classes', c.id, rec); else Store.add('classes', rec);
       toast(c ? 'Class updated' : 'Class scheduled');
     },
     onDelete: c ? () => removeClass(c.id) : null,
@@ -263,25 +286,23 @@ function classLogForm(classId, date) {
   const c = Store.get('classes', classId);
   if (!c) return;
   const log = classLog(classId, date);
-  const s = onlineStudentById(c.studentId);
+  const time = classTimeOn(c, date);
   openForm({
     title: 'Class notes',
-    values: { ...log, done: !!log.done, paid: !!log.paid },
+    values: { ...log, done: !!log.done },
     fields: [
       {
-        name: 'info', type: 'html', cls: 'j-online', html: `<b>${esc(c.subject)}</b> with ${esc(s ? s.name : '—')}<br>
-          <span class="muted">${fmtLongDate(date)}${c.time ? ' · ' + fmtTime(c.time) : ''}${c.duration ? ' · ' + c.duration + ' min' : ''}${c.rate ? ' · ' + money(c.rate, c.currency) : ''}</span>
-          <div style="margin-top:8px"><button type="button" class="btn btn-light btn-sm" data-action="edit-class" data-id="${c.id}">${icon('edit')}Edit class plan</button></div>`,
+        name: 'info', type: 'html', cls: 'j-online', html: `<b>${esc(classTitle(c))}</b><br>
+          <span class="muted">${fmtLongDate(date)}${time ? ' · ' + fmtTime(time) : ''}</span>
+          <div style="margin-top:8px"><button type="button" class="btn btn-light btn-sm" data-action="edit-class" data-id="${c.id}">${icon('edit')}Edit schedule</button></div>`,
       },
       { name: 'topic', label: 'Topic covered' },
       { name: 'homework', label: 'Homework assigned' },
       { name: 'notes', label: 'Progress notes', type: 'textarea' },
-      { name: 'done', label: 'Class given', type: 'checkbox', half: true },
-      { name: 'paid', label: 'Paid', type: 'checkbox', half: true },
+      { name: 'done', label: 'Class given', type: 'checkbox' },
     ],
     onSave: (v) => {
-      updateClassLog(classId, date, { topic: v.topic, homework: v.homework, notes: v.notes, done: v.done || v.paid });
-      setClassPaid(classId, date, v.paid);
+      updateClassLog(classId, date, { topic: v.topic, homework: v.homework, notes: v.notes, done: v.done });
       toast('Class saved');
     },
   });
@@ -300,21 +321,20 @@ function onlineStudentDetail(id) {
     <dl class="kv">
       <dt>Contact</dt><dd>${esc(s.contact || '—')}</dd>
       <dt>Time zone</dt><dd>${esc(s.timezone || '—')}</dd>
-      <dt>Rate</dt><dd>${s.rate ? money(s.rate, s.currency) + ' / class' : '—'}</dd>
       ${s.notes ? `<dt>Notes</dt><dd>${esc(s.notes)}</dd>` : ''}
     </dl>
     <div class="chips" style="margin-bottom:16px">
       <button class="btn btn-dark btn-sm" data-action="new-class" data-student="${id}">${icon('plus')}Schedule class</button>
       <button class="btn btn-ghost btn-sm" data-action="edit-online-student" data-id="${id}">${icon('edit')}Edit</button>
     </div>
-    <div class="group-title">Class plans <span class="count">${classes.length}</span></div>
+    <div class="group-title">Schedule <span class="count">${classes.length}</span></div>
     <div class="list">${classes.map(classPlanRow).join('') || emptyState('No classes scheduled.', 'calendar')}</div>
-    <div class="group-title">Recent history</div>
+    <div class="group-title">Recent classes</div>
     <div class="list">${history.map((h) => `
-      <div class="row j-online ${h.log.done ? '' : ''}">
+      <div class="row j-online">
         <div class="row-main" data-action="open-item" data-kind="class" data-id="${h.cls.id}" data-date="${h.date}">
-          <div class="row-title">${fmtDate(h.date)} · ${esc(h.log.topic || h.cls.subject)}</div>
-          <div class="row-meta">${h.log.paid ? '<span class="chip dark">Paid</span>' : '<span class="chip outline">Unpaid</span>'}${h.log.homework ? `<span>HW: ${esc(h.log.homework)}</span>` : ''}</div>
+          <div class="row-title">${fmtDate(h.date)} · ${esc(h.log.topic || h.cls.subject || 'Class')}</div>
+          <div class="row-meta">${h.log.done ? '<span class="chip j-online">Given</span>' : ''}${h.log.homework ? `<span>HW: ${esc(h.log.homework)}</span>` : ''}</div>
           ${h.log.notes ? `<div class="small muted" style="margin-top:6px">${esc(h.log.notes)}</div>` : ''}
         </div>
       </div>`).join('') || emptyState('No classes logged yet.', 'note')}</div>
@@ -323,10 +343,19 @@ function onlineStudentDetail(id) {
 
 function recurrenceText(c, startField = 'startDate') {
   if (!c.recurring) return `Once · ${fmtDate(c[startField])}`;
-  const sel = [1, 2, 3, 4, 5, 6, 0].filter((d) => (c.days || []).includes(d));
+  const sel = DAY_ORDER.filter((d) => (c.days || []).includes(d));
   const key = sel.join('');
   const days = key === '1234560' ? 'Every day' : key === '12345' ? 'Mon–Fri' : 'Every ' + sel.map((d) => WEEKDAYS[d]).join(', ');
   return `${days}${c.endDate ? ' until ' + fmtDate(c.endDate) : ''}`;
+}
+
+/** "Mon 5pm · Wed 6pm" when each day has its own time, otherwise "Every Mon, Wed · 5pm". */
+function classScheduleText(c) {
+  if (c.recurring && c.times) {
+    const days = DAY_ORDER.filter((d) => (c.days || []).includes(d));
+    return days.map((d) => `${WEEKDAYS[d]} ${fmtTime(c.times[d])}`).join(' · ') + (c.endDate ? ' · until ' + fmtDate(c.endDate) : '');
+  }
+  return recurrenceText(c) + (c.time ? ' · ' + fmtTime(c.time) : '');
 }
 
 function classPlanRow(c) {
@@ -334,7 +363,7 @@ function classPlanRow(c) {
   return `<div class="row j-online ${ended ? 'done' : ''}">
     <div class="row-main" data-action="edit-class" data-id="${c.id}">
       <div class="row-title">${esc(classTitle(c))}</div>
-      <div class="row-meta"><span>${recurrenceText(c)}${c.time ? ' · ' + fmtTime(c.time) : ''}</span>${c.rate ? `<span class="chip j-online">${money(c.rate, c.currency)}</span>` : ''}</div>
+      <div class="row-meta"><span class="chip outline">${c.recurring ? icon('repeat', 'xs') : ''}${esc(classScheduleText(c))}</span></div>
     </div>
   </div>`;
 }

@@ -166,7 +166,7 @@ function viewOnline() {
   if (ui.tab === 'schedule') {
     addBtn = `<button class="btn btn-dark" data-action="new-class">${icon('plus')}Class</button>`;
     content = onlineSchedule();
-  } else if (ui.tab === 'students') {
+  } else {
     addBtn = `<button class="btn btn-dark" data-action="new-online-student">${icon('plus')}Student</button>`;
     const list = [...Store.data.onlineStudents].sort((a, b) => a.name.localeCompare(b.name));
     content = list.length ? `<div class="grid grid-3">${list.map((s) => {
@@ -174,12 +174,9 @@ function viewOnline() {
       return `<button class="student-card j-online" data-action="online-student-detail" data-id="${s.id}">
         <span class="avatar">${esc(initials(s.name))}</span>
         <span class="info"><span class="name">${esc(s.name)}</span><br><span class="small muted">${esc([s.timezone, s.contact].filter(Boolean).join(' · ') || 'No contact info')}</span>
-        <span class="badges">${s.rate ? `<span class="chip j-online">${money(s.rate, s.currency)}/class</span>` : ''}<span class="chip outline">${n} class plan${n === 1 ? '' : 's'}</span></span></span>
+        <span class="badges"><span class="chip outline">${n ? `${n} class schedule${n === 1 ? '' : 's'}` : 'No classes yet'}</span></span></span>
         ${icon('right')}</button>`;
     }).join('')}</div>` : `<div class="card">${emptyState('Add your online students to schedule classes with them.', 'users')}</div>`;
-  } else {
-    addBtn = '';
-    content = onlinePayments();
   }
   return `
   ${workSwitcher('online')}
@@ -187,7 +184,7 @@ function viewOnline() {
     <div><p class="eyebrow">Online Teacher</p><h1>Online Classes</h1></div>
     <div class="head-actions">${addBtn}</div>
   </header>
-  <div class="tabs-row">${tabSeg(ui.tab, [['schedule', 'Schedule'], ['students', 'Students'], ['payments', 'Payments']], 'on-tab')}</div>
+  <div class="tabs-row">${tabSeg(ui.tab, [['schedule', 'Schedule'], ['students', 'Students']], 'on-tab')}</div>
   ${content}`;
 }
 
@@ -199,8 +196,8 @@ function onlineSchedule() {
   let days = '';
   for (let d = ws; d <= we; d = addDays(d, 1)) {
     const items = occ.filter((o) => o.date === d).map((o) => ({
-      kind: 'class', id: o.cls.id, date: d, title: classTitle(o.cls), job: 'online', time: o.cls.time,
-      done: !!o.log.done, paid: !!o.log.paid, sub: o.log.topic ? 'Topic: ' + o.log.topic : (o.cls.duration ? o.cls.duration + ' min' : ''),
+      kind: 'class', id: o.cls.id, date: d, title: classTitle(o.cls), job: 'online', time: classTimeOn(o.cls, d),
+      done: !!o.log.done, sub: o.log.topic ? 'Topic: ' + o.log.topic : '',
     }));
     if (!items.length) continue;
     days += `<div class="group-title">${d === todayISO() ? 'Today · ' : ''}${fmtDate(d)}</div><div class="list">${items.map((i) => agendaRow(i)).join('')}</div>`;
@@ -217,50 +214,8 @@ function onlineSchedule() {
       ${days || emptyState('No classes this week.', 'laptop')}
     </section>
     <section class="card">
-      <div class="card-head"><h2>Class plans</h2><span class="muted small">Recurring & one-off</span></div>
-      <div class="list">${plans.map(classPlanRow).join('') || emptyState('Schedule a class — it can repeat every week.', 'calendar')}</div>
+      <div class="card-head"><h2>Weekly schedule</h2><button class="btn btn-light btn-sm" data-action="new-class">${icon('plus')}Class</button></div>
+      <div class="list">${plans.map(classPlanRow).join('') || emptyState('Add a class: pick the student, the days and the time — it repeats every week.', 'calendar')}</div>
     </section>
   </div>`;
-}
-
-function onlinePayments() {
-  const m = App.ui.on.month;
-  const start = m + '-01';
-  const end = addDays(addMonths(start, 1), -1);
-  const occ = classOccurrences(start, end);
-  const given = occ.filter((o) => o.log.done);
-  const paid = occ.filter((o) => o.log.paid);
-  const owed = given.filter((o) => !o.log.paid);
-  const sum = (list, cur) => list.filter((o) => (o.cls.currency || 'USD') === cur).reduce((s, o) => s + Number(o.cls.rate || 0), 0);
-  const both = (list) => {
-    const u = sum(list, 'USD'), v = sum(list, 'VES');
-    return [u || !v ? money(u, 'USD') : '', v ? money(v, 'VES') : ''].filter(Boolean).join(' + ');
-  };
-  return `
-  <div class="cal-toolbar">
-    <div class="cal-nav">
-      <button class="icon-btn" data-action="on-month" data-dir="-1" aria-label="Previous month">${icon('left')}</button>
-      <button class="icon-btn" data-action="on-month" data-dir="1" aria-label="Next month">${icon('right')}</button>
-      <span class="cal-title">${fmtMonth(start)}</span>
-    </div>
-  </div>
-  <div class="grid grid-4" style="margin-bottom:16px">
-    <div class="money-card c-blue"><span class="lbl">Scheduled</span><span class="big">${occ.length}</span><span class="alt">classes</span></div>
-    <div class="money-card j-online c-soft"><span class="lbl">Given</span><span class="big">${given.length}</span><span class="alt">${both(given)}</span></div>
-    <div class="money-card c-green"><span class="lbl">Paid</span><span class="big">${paid.length}</span><span class="alt">${both(paid)}</span></div>
-    <div class="money-card c-yellow"><span class="lbl">Owed to you</span><span class="big">${both(owed)}</span><span class="alt">${owed.length} class${owed.length === 1 ? '' : 'es'}</span></div>
-  </div>
-  <section class="card">
-    <div class="card-head"><h2>Given but not paid</h2></div>
-    <div class="list">${owed.map((o) => `
-      <div class="row j-online">
-        <span class="time">${fmtDate(o.date, { month: 'short', day: 'numeric' })}</span>
-        <div class="row-main" data-action="open-item" data-kind="class" data-id="${o.cls.id}" data-date="${o.date}">
-          <div class="row-title">${esc(classTitle(o.cls))}</div>
-          <div class="row-meta">${o.cls.rate ? `<span class="chip j-online">${money(o.cls.rate, o.cls.currency)}</span>` : '<span>No rate set</span>'}</div>
-        </div>
-        <button class="btn btn-dark btn-sm" data-action="toggle-paid" data-id="${o.cls.id}" data-date="${o.date}">Mark paid</button>
-      </div>`).join('') || emptyState('Nothing owed. Every class given this month is paid!', 'check')}</div>
-    <p class="small muted" style="margin:14px 0 0">Marking a class as paid adds the income to Finances automatically.</p>
-  </section>`;
 }

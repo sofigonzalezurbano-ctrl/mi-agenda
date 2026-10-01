@@ -216,9 +216,6 @@ function taskBoard(tasks, opts = {}) {
 const KIND_LABEL = { meeting: 'Meeting', class: 'Class', need: 'Need', task: 'Task' };
 
 function agendaRow(it, { showTime = true } = {}) {
-  const paid = it.kind === 'class'
-    ? `<button class="toggle-pill ${it.paid ? 'on' : ''}" data-action="toggle-paid" data-id="${it.id}" data-date="${it.date}" aria-pressed="${it.paid}">${icon('dollar')}${it.paid ? 'Paid' : 'Unpaid'}</button>`
-    : '';
   const data = `data-kind="${it.kind}" data-id="${it.id}" data-date="${it.date}"`;
   return `<div class="row j-${it.job} ${it.done ? 'done' : ''}">
     ${showTime ? `<span class="time">${it.time ? fmtTime(it.time) : 'Anytime'}</span>` : ''}
@@ -227,7 +224,6 @@ function agendaRow(it, { showTime = true } = {}) {
       <div class="row-title">${esc(it.title)}</div>
       <div class="row-meta">${jobChip(it.job)}${it.recurring ? `<span class="chip outline">${icon('repeat', 'xs')}Fixed</span>` : ''}${it.kind === 'meeting' || it.kind === 'class' ? `<span class="chip outline">${KIND_LABEL[it.kind]}</span>` : ''}${prioChip(it.priority)}${it.sub && it.kind !== 'task' && it.kind !== 'need' ? `<span>${esc(it.sub)}</span>` : ''}</div>
     </div>
-    ${paid}
   </div>`;
 }
 

@@ -130,7 +130,7 @@ function viewToday() {
   const nextMeeting = Store.data.meetings
     .filter((m) => !m.done && m.date >= today)
     .sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || '')))[0];
-  const owed = classOccurrences(monthKey(today) + '-01', today).filter((o) => o.log.done && !o.log.paid);
+  const classesToday = items.filter((i) => i.kind === 'class');
   const tomorrow = agendaFor(addDays(today, 1));
 
   return `
@@ -159,7 +159,7 @@ function viewToday() {
           <span class="num">${highPending}</span><span class="lbl">High-priority tasks pending</span>
         </button>
         <button class="stat c-blue" style="border:0;text-align:left" data-route-to="online">
-          <span class="num">${owed.length}</span><span class="lbl">Classes unpaid this month</span>
+          <span class="num">${classesToday.filter((i) => !i.done).length}</span><span class="lbl">Online classes left today</span>
         </button>
         <button class="stat c-green" style="border:0;text-align:left" data-route-to="donbosco" data-tab="meetings">
           <span class="lbl">Next guardian meeting</span>

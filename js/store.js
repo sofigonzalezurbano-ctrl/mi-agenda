@@ -9,9 +9,9 @@ function emptyData() {
     students: [],       // Don Bosco: {id, name, grade, section, guardian, guardianPhone, notes}
     incidents: [],      // {id, studentId, date, type, severity, description, guardianNotified, resolved}
     meetings: [],       // {id, studentId, guardian, date, time, topic, notes, done}
-    onlineStudents: [], // {id, name, contact, timezone, rate, currency, notes}
-    classes: [],        // {id, studentId, subject, startDate, time, duration, recurring, days[], endDate, rate, currency, notes}
-    classLogs: {},      // "classId|date" -> {done, paid, topic, homework, notes, txId}
+    onlineStudents: [], // {id, name, contact, timezone, notes}
+    classes: [],        // {id, studentId, subject, startDate, time, times{weekday: time}|null, recurring, days[], endDate, notes}
+    classLogs: {},      // "classId|date" -> {done, topic, homework, notes}
     needs: [],          // {id, title, priority, cost, currency, date, notes, done}
     transactions: [],   // {id, type: income|expense|saving, amount, currency, rate (Bs per USD, for VES), category, source, goalId, date, note}
     goals: [],          // {id, name, target, currency, deadline}
@@ -135,29 +135,12 @@ function updateClassLog(classId, date, patch) {
 
 function classTitle(c) {
   const s = onlineStudentById(c.studentId);
-  return `${c.subject || 'Class'}${s ? ' · ' + s.name : ''}`;
+  const name = s ? s.name : 'Student';
+  return c.subject ? `${name} · ${c.subject}` : `Class with ${name}`;
 }
 
-/** Marks a class occurrence paid/unpaid and keeps the linked income transaction in sync. */
-function setClassPaid(classId, date, paid) {
-  const c = Store.get('classes', classId);
-  if (!c) return;
-  const log = classLog(classId, date);
-  if (paid && !log.paid) {
-    let txId = null;
-    if (Number(c.rate) > 0) {
-      const s = onlineStudentById(c.studentId);
-      txId = Store.add('transactions', {
-        type: 'income', amount: Number(c.rate), currency: c.currency || 'USD', category: 'Online classes',
-        source: 'online', rate: c.currency === 'VES' ? rateOn(date) : null, date, note: `${c.subject || 'Class'}${s ? ' – ' + s.name : ''}`, classKey: logKey(classId, date),
-      }).id;
-    }
-    updateClassLog(classId, date, { paid: true, done: true, txId });
-  } else if (!paid && log.paid) {
-    if (log.txId) Store.remove('transactions', log.txId);
-    updateClassLog(classId, date, { paid: false, txId: null });
-  }
-}
+/** Time of a class on a given day (classes can have a different time per weekday). */
+const classTimeOn = (c, iso) => (c.times && c.times[weekday(iso)]) || c.time || '';
 
 /** All class occurrences between two ISO dates (inclusive). */
 function classOccurrences(fromIso, toIso) {
@@ -167,7 +150,7 @@ function classOccurrences(fromIso, toIso) {
       if (classOccursOn(c, d)) out.push({ cls: c, date: d, log: classLog(c.id, d) });
     });
   }
-  return out.sort((a, b) => a.date.localeCompare(b.date) || (a.cls.time || '').localeCompare(b.cls.time || ''));
+  return out.sort((a, b) => a.date.localeCompare(b.date) || classTimeOn(a.cls, a.date).localeCompare(classTimeOn(b.cls, b.date)));
 }
 
 /* ---- Unified agenda (calendar + daily reminders) ---- */
@@ -188,8 +171,8 @@ function agendaFor(iso) {
   d.classes.filter((c) => classOccursOn(c, iso)).forEach((c) => {
     const log = classLog(c.id, iso);
     items.push({
-      kind: 'class', id: c.id, date: iso, title: classTitle(c), job: 'online', time: c.time, done: !!log.done,
-      paid: !!log.paid, sub: c.duration ? `${c.duration} min` : 'Online class',
+      kind: 'class', id: c.id, date: iso, title: classTitle(c), job: 'online', time: classTimeOn(c, iso), done: !!log.done,
+      sub: log.topic ? 'Topic: ' + log.topic : 'Online class',
     });
   });
   d.needs.filter((n) => n.date === iso).forEach((n) => items.push({
