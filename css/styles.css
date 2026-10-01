@@ -420,7 +420,7 @@ details[open].done-list summary::after { content: "–"; }
 @media (max-width: 900px) {
   .app { grid-template-columns: 1fr; }
   .sidebar { display: none; }
-  .main { padding: 20px 16px 120px; }
+  .main { padding: max(20px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 120px max(16px, env(safe-area-inset-left)); }
   .mobile-tabs { display: flex; }
   .bottom-nav {
     display: flex; align-items: center; justify-content: space-around;
