@@ -48,9 +48,17 @@ function writer(uid) {
   };
 }
 
-function startSync(user) {
+let retriedWithFreshToken = false;
+
+async function startSync(user) {
   stopListening();
   CloudSync.begin(user.uid, user.email, writer(user.uid));
+  // A token issued before the email was verified still says "not verified" for up to an hour,
+  // and the security rules would reject it. Ask for a fresh one in that case.
+  try {
+    const token = await user.getIdTokenResult();
+    if (!token.claims.email_verified) await user.getIdToken(true);
+  } catch (e) { /* offline: the cached token is used */ }
   unsubscribe = onSnapshot(
     collection(db, 'users', user.uid, 'records'),
     { includeMetadataChanges: true },
@@ -62,7 +70,13 @@ function startSync(user) {
         .filter((c) => !c.doc.metadata.hasPendingWrites)
         .map((c) => ({ key: c.doc.id, json: c.type === 'removed' ? null : c.doc.data().v })),
     }),
-    (err) => CloudSync.fail(err),
+    async (err) => {
+      if (err.code === 'permission-denied' && !retriedWithFreshToken) {
+        retriedWithFreshToken = true;
+        try { await user.getIdToken(true); startSync(user); return; } catch (e) { /* fall through */ }
+      }
+      CloudSync.fail(err);
+    },
   );
 }
 
