@@ -16,6 +16,9 @@ function emptyData() {
     transactions: [],   // {id, type: income|expense|saving, amount, currency, rate (Bs per USD, for VES), category, source, goalId, debtId, date, note}
                         // or {id, type: 'exchange', direction: buy|sell, usd, ves, exRate, method, date, note} (buying/selling dollars)
     goals: [],          // {id, name, target, currency, deadline}
+    schoolSchedule: [], // Don Bosco timetable: {id, day (1=Mon…5=Fri), start, end, group, subject, from}
+    schoolLogs: {},     // "slotId|date" -> {status: given|not_given|absent, substitute, notes}
+    substitutions: [],  // classes I covered for someone else: {id, date, start, end, group, teacher, notes}
     debts: [],          // {id, creditor, description, amount, currency, installment, repeat: once|monthly, dueDate, notes}
     rates: {},          // date -> Bs per USD (BCV history)
     settings: { name: 'Sofia', rate: 0, rateDate: null, rateSource: null, rateFetchedAt: 0, rateError: null },
@@ -101,6 +104,46 @@ function removeClass(id, save = true) {
   if (save) Store.save();
 }
 
+/* ---- Don Bosco timetable ---- */
+const SCHOOL_STATUS = { given: 'Given', not_given: 'Not given', absent: 'I was absent' };
+
+/** Her 2026–2027 English timetable, loaded once. Fixed ids so two devices seeding it don't create duplicates. */
+const DEFAULT_SCHOOL_SCHEDULE = [
+  ['mon-1', 1, '07:00', '08:15', '2° B'], ['mon-3', 1, '11:05', '12:20', '2° A'],
+  ['tue-1', 2, '07:00', '08:15', '2° A'], ['tue-2', 2, '08:15', '09:30', '2° B'],
+  ['wed-1', 3, '07:00', '08:15', '2° B'], ['wed-2', 3, '08:15', '09:30', '2° A'],
+  ['fri-1', 5, '07:00', '08:15', '2° B'], ['fri-2', 5, '08:15', '09:30', '2° A'],
+];
+function seedSchoolSchedule() {
+  const d = Store.data;
+  if (d.settings.schoolSeeded || d.schoolSchedule.length) return;
+  DEFAULT_SCHOOL_SCHEDULE.forEach(([id, day, start, end, group]) => d.schoolSchedule.push({
+    id: 'sch-' + id, day, start, end, group, subject: 'Inglés', from: '2026-09-28',
+  }));
+  d.settings.schoolSeeded = true;
+  Store.save();
+}
+
+function schoolSlotsOn(iso) {
+  const wd = weekday(iso);
+  return Store.data.schoolSchedule
+    .filter((s) => s.day === wd && (!s.from || iso >= s.from) && (!s.to || iso <= s.to))
+    .sort((a, b) => a.start.localeCompare(b.start));
+}
+const schoolLogKey = (slotId, date) => `${slotId}|${date}`;
+const schoolLog = (slotId, date) => Store.data.schoolLogs[schoolLogKey(slotId, date)] || {};
+function setSchoolLog(slotId, date, patch) {
+  const key = schoolLogKey(slotId, date);
+  const log = { ...(Store.data.schoolLogs[key] || {}), ...patch };
+  if (!log.status && !log.notes) delete Store.data.schoolLogs[key]; else Store.data.schoolLogs[key] = log;
+  Store.save();
+}
+function schoolStatusText(log) {
+  if (log.status === 'absent') return log.substitute ? `Absent · covered by ${log.substitute}` : 'Absent';
+  return SCHOOL_STATUS[log.status] || 'Not marked';
+}
+const slotTitle = (s) => `${s.subject || 'Class'} · ${s.group}`;
+
 /* ---- Recurring (fixed) tasks ---- */
 function taskOccursOn(t, iso) {
   if (!t.recurring) return t.date === iso;
@@ -177,6 +220,18 @@ function agendaFor(iso) {
       sub: log.topic ? 'Topic: ' + log.topic : 'Online class',
     });
   });
+  schoolSlotsOn(iso).forEach((s) => {
+    const log = schoolLog(s.id, iso);
+    items.push({
+      kind: 'school', id: s.id, date: iso, title: slotTitle(s), job: 'donbosco', time: s.start, end: s.end,
+      done: !!log.status, status: log.status || '',
+      sub: log.status || iso <= todayISO() ? schoolStatusText(log) : `${fmtTime(s.start)}–${fmtTime(s.end)}`,
+    });
+  });
+  d.substitutions.filter((x) => x.date === iso).forEach((x) => items.push({
+    kind: 'sub', id: x.id, date: iso, title: `Substitution · ${x.group || 'class'}`, job: 'donbosco', time: x.start, end: x.end,
+    done: iso <= todayISO(), sub: x.teacher ? `Covered for ${x.teacher}` : 'Substitution',
+  }));
   d.debts.forEach((debt) => {
     const k = debtOccurrenceOn(debt, iso);
     if (k < 0) return;
@@ -210,6 +265,8 @@ function toggleAgendaItem(kind, id, date) {
     Store.update('meetings', id, { done: !m.done });
   } else if (kind === 'class') {
     updateClassLog(id, date, { done: !classLog(id, date).done });
+  } else if (kind === 'school') {
+    setSchoolLog(id, date, { status: schoolLog(id, date).status ? '' : 'given', substitute: '' });
   } else if (kind === 'need') {
     const n = Store.get('needs', id);
     Store.update('needs', id, { done: !n.done });

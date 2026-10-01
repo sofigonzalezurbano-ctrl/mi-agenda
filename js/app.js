@@ -17,7 +17,7 @@ const App = {
   lastDay: todayISO(),
   ui: {
     cal: { mode: 'month', cursor: todayISO() },
-    db: { tab: 'tasks', group: 'all', q: '', incStatus: 'open', incType: 'all' },
+    db: { tab: 'schedule', group: 'all', q: '', incStatus: 'open', incType: 'all', week: startOfWeek(todayISO()) },
     fe: { rest: 'all' },
     on: { tab: 'schedule', week: startOfWeek(todayISO()) },
     fin: { month: monthKey(todayISO()), type: 'all' },
@@ -80,6 +80,8 @@ const ACTIONS = {
     else if (kind === 'class') classLogForm(id, date);
     else if (kind === 'need') needForm(Store.get('needs', id));
     else if (kind === 'debt') debtForm(Store.get('debts', id));
+    else if (kind === 'school') schoolLogForm(id, date);
+    else if (kind === 'sub') substitutionForm(Store.get('substitutions', id));
   },
   /* quick-add shortcuts */
   'qa-task-donbosco': (el) => taskForm(null, { jobs: ['donbosco'], date: ds(el).date }),
@@ -98,6 +100,19 @@ const ACTIONS = {
 
   /* Don Bosco */
   'db-tab': (el) => { App.ui.db.tab = ds(el).tab; },
+  'db-week': (el) => { const n = Number(ds(el).dir); App.ui.db.week = n ? addDays(App.ui.db.week, n) : startOfWeek(todayISO()); },
+  'school-log': (el) => schoolLogForm(ds(el).id, ds(el).date),
+  'school-status': (el) => {
+    const { id, date, status } = ds(el);
+    if (status === 'absent') { schoolLogForm(id, date, { status: 'absent' }); return; }
+    const same = schoolLog(id, date).status === status;
+    setSchoolLog(id, date, { status: same ? '' : status, substitute: '' });
+  },
+  'edit-schedule': () => scheduleEditor(),
+  'new-slot': () => slotForm(),
+  'edit-slot': (el) => slotForm(Store.get('schoolSchedule', ds(el).id)),
+  'new-sub': (el) => substitutionForm(null, ds(el).date ? { date: ds(el).date } : {}),
+  'edit-sub': (el) => substitutionForm(Store.get('substitutions', ds(el).id)),
   'db-inc-status': (el) => { App.ui.db.incStatus = ds(el).status; },
   'new-student': () => studentForm(),
   'edit-student': (el) => studentForm(studentById(ds(el).id)),
@@ -232,6 +247,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) { ch
 /* ============ Boot ============ */
 $$('[data-icon]').forEach((el) => { el.outerHTML = icon(el.dataset.icon); });
 Store.load();
+seedSchoolSchedule();
 window.addEventListener('hashchange', () => App.onRoute());
 App.onRoute();
 CloudSync.setStatus(CloudSync.status);

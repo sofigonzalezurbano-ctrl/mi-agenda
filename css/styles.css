@@ -421,6 +421,32 @@ details[open].done-list summary::after { content: "–"; }
 .day-time { display: flex; align-items: center; gap: 8px; background: var(--surface); border-radius: 14px; padding: 6px 10px; box-shadow: inset 0 0 0 1px var(--line); }
 .day-time span { font-weight: 700; font-size: 13px; width: 34px; }
 .day-time input { border: 0; background: transparent; min-width: 0; flex: 1; padding: 4px 0; }
+/* Don Bosco timetable */
+.status-btns { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; flex: none; max-width: 230px; }
+.school-row.st-given { background: #e3f3e6; }
+.school-row.st-absent { background: #fde8d4; }
+.school-row.st-not_given { background: #eeeae4; }
+.st-chip { background: rgba(255,255,255,.75); }
+.tt-wrap { overflow-x: auto; }
+.timetable { width: 100%; min-width: 560px; border-collapse: separate; border-spacing: 6px; table-layout: fixed; }
+.timetable th { font-size: 12px; font-weight: 600; color: var(--ink-2); text-align: center; padding: 6px 4px; }
+.timetable thead th.today { background: var(--black); color: #fff; border-radius: 12px; }
+.timetable tbody th { text-align: left; white-space: nowrap; width: 92px; }
+.timetable td { padding: 0; height: 64px; background: rgba(255,255,255,.45); border-radius: 14px; }
+.tt-cell { width: 100%; height: 100%; min-height: 64px; border: 0; border-radius: 14px; padding: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 11.5px; color: var(--ink-2); }
+.tt-cell b { font-size: 16px; color: var(--ink); }
+.st-none { background: #fff; box-shadow: inset 0 0 0 2px #bde9e1; }
+.st-future { background: #bde9e1; }
+.st-given { background: #cdeccf; }
+.st-absent { background: #fdd9b5; }
+.st-not_given { background: #e4dfd8; }
+.lg-dot { width: 12px; height: 12px; border-radius: 4px; display: inline-block; }
+.school-stats { grid-template-columns: 1fr 1fr !important; }
+.school-stats .stat { border-radius: 16px; }
+@media (max-width: 640px) {
+  .school-row { flex-wrap: wrap; }
+  .status-btns { max-width: none; width: 100%; justify-content: flex-start; padding-left: 64px; }
+}
 .kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 14px; margin-bottom: 14px; }
 .kv dt { color: var(--ink-2); }
 .kv dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }

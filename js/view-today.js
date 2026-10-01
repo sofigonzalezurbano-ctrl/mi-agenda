@@ -125,7 +125,11 @@ function viewToday() {
   const overdue = overdueTasks();
   const overdueDebts = Store.data.debts.filter((d) => debtStatus(d).overdue);
   const pending = items.filter((i) => !i.done);
-  const done = items.filter((i) => i.done);
+  // School classes have their own card with quick buttons, so the reminders list skips them.
+  const listItems = items.filter((i) => i.kind !== 'school' && i.kind !== 'sub');
+  const listPending = listItems.filter((i) => !i.done);
+  const done = listItems.filter((i) => i.done);
+  const schoolToday = schoolDayList(today);
 
   const highPending = Store.data.tasks.filter((t) => taskIsPending(t) && t.priority === 'high').length;
   const nextMeeting = Store.data.meetings
@@ -170,13 +174,18 @@ function viewToday() {
     </div>
 
     <div class="grid" style="gap:16px">
+      ${schoolToday ? `<section class="card" aria-labelledby="sch-h">
+        <div class="card-head"><h2 id="sch-h">Don Bosco today</h2><button class="btn btn-light btn-sm" data-route-to="donbosco" data-tab="schedule">Timetable</button></div>
+        ${schoolToday}
+      </section>` : ''}
+
       <section class="card" aria-labelledby="rem-h">
         <div class="card-head">
           <h2 id="rem-h">Daily reminders</h2>
           <button class="btn btn-light btn-sm" data-action="quick-add" data-date="${today}">${icon('plus')}Add</button>
         </div>
         <div class="list">
-          ${pending.map((i) => agendaRow(i)).join('') || (items.length ? emptyState('Everything for today is done. Amazing!', 'sparkle') : emptyState('Nothing scheduled for today. Add tasks, classes or meetings with a date to see them here.', 'calendar'))}
+          ${listPending.map((i) => agendaRow(i)).join('') || (listItems.length ? emptyState('Everything for today is done. Amazing!', 'sparkle') : emptyState('Nothing scheduled for today. Add tasks, classes or meetings with a date to see them here.', 'calendar'))}
         </div>
         ${done.length ? `<details class="done-list" data-key="today-done" ${App.openDetails.has('today-done') ? 'open' : ''}>
           <summary class="group-title">Done today <span class="count">${done.length}</span></summary>

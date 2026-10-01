@@ -214,7 +214,7 @@ function taskBoard(tasks, opts = {}) {
   return html;
 }
 
-const KIND_LABEL = { meeting: 'Meeting', class: 'Class', need: 'Need', task: 'Task', debt: 'Debt' };
+const KIND_LABEL = { meeting: 'Meeting', class: 'Class', need: 'Need', task: 'Task', debt: 'Debt', school: 'Class', sub: 'Substitution' };
 
 function agendaRow(it, { showTime = true } = {}) {
   const data = `data-kind="${it.kind}" data-id="${it.id}" data-date="${it.date}"`;
@@ -223,7 +223,7 @@ function agendaRow(it, { showTime = true } = {}) {
     ${checkBtn(it.done, `data-action="toggle-item" ${data}`, it.title)}
     <div class="row-main" data-action="open-item" ${data}>
       <div class="row-title">${esc(it.title)}</div>
-      <div class="row-meta">${jobChip(it.job)}${it.recurring ? `<span class="chip outline">${icon('repeat', 'xs')}Fixed</span>` : ''}${['meeting', 'class', 'debt'].includes(it.kind) ? `<span class="chip outline">${KIND_LABEL[it.kind]}</span>` : ''}${it.kind === 'debt' ? '' : prioChip(it.priority)}${it.sub && it.kind !== 'task' && it.kind !== 'need' ? `<span>${esc(it.sub)}</span>` : ''}</div>
+      <div class="row-meta">${jobChip(it.job)}${it.recurring ? `<span class="chip outline">${icon('repeat', 'xs')}Fixed</span>` : ''}${['meeting', 'class', 'debt', 'school', 'sub'].includes(it.kind) ? `<span class="chip outline">${KIND_LABEL[it.kind]}</span>` : ''}${it.kind === 'debt' ? '' : prioChip(it.priority)}${it.sub && it.kind !== 'task' && it.kind !== 'need' ? `<span>${esc(it.sub)}</span>` : ''}</div>
     </div>
   </div>`;
 }

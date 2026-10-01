@@ -75,7 +75,7 @@ function weekView(start) {
           <button class="wcard j-${it.job} ${it.done ? 'done' : ''}" data-action="open-item" data-kind="${it.kind}" data-id="${it.id}" data-date="${d}">
             <span class="t">${it.time ? fmtTime(it.time) : 'Anytime'}<span class="jdot"></span></span>
             <span class="n">${esc(it.title)}</span>
-            ${['meeting', 'class', 'debt'].includes(it.kind) ? `<span class="s">${KIND_LABEL[it.kind]}${it.kind === 'debt' ? ' · ' + esc(it.sub) : ''}</span>` : `<span class="s">${esc(JOBS[it.job].label)}</span>`}
+            ${['meeting', 'class', 'debt', 'school', 'sub'].includes(it.kind) ? `<span class="s">${KIND_LABEL[it.kind]}${['debt', 'school', 'sub'].includes(it.kind) ? ' · ' + esc(it.sub) : ''}</span>` : `<span class="s">${esc(JOBS[it.job].label)}</span>`}
           </button>`).join('')}
         <button class="btn btn-ghost btn-sm" data-action="quick-add" data-date="${d}" aria-label="Add on ${fmtLongDate(d)}">${icon('plus')}</button>
       </div>

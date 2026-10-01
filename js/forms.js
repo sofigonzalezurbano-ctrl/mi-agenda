@@ -144,6 +144,85 @@ function meetingForm(m, defaults = {}) {
   });
 }
 
+/* ---- Don Bosco timetable ---- */
+const SCHOOL_DAYS = [[1, 'Monday'], [2, 'Tuesday'], [3, 'Wednesday'], [4, 'Thursday'], [5, 'Friday']];
+const fmtRange = (a, b) => `${fmtTime(a)}${b ? '–' + fmtTime(b) : ''}`;
+
+function schoolLogForm(slotId, date, preset = {}) {
+  const s = Store.get('schoolSchedule', slotId);
+  if (!s) return;
+  const log = { ...schoolLog(slotId, date), ...preset };
+  openForm({
+    title: 'Class at Don Bosco',
+    values: { status: log.status || '', substitute: log.substitute || '', notes: log.notes || '' },
+    fields: [
+      { name: 'info', type: 'html', cls: 'j-donbosco', html: `<b>${esc(slotTitle(s))}</b><br><span class="muted">${fmtLongDate(date)} · ${fmtRange(s.start, s.end)}</span>` },
+      { name: 'status', label: 'What happened?', type: 'pills', options: [['given', '✓ I gave it'], ['absent', 'I was absent'], ['not_given', 'No class (activity, holiday…)'], ['', 'Not marked']] },
+      { name: 'substitute', label: 'Who covered for you?', placeholder: 'Teacher’s name (optional)', show: (v) => v.status === 'absent' },
+      { name: 'notes', label: 'Notes', type: 'textarea', placeholder: 'Topic, what happened…' },
+    ],
+    onSave: (v) => {
+      setSchoolLog(slotId, date, { status: v.status, substitute: v.status === 'absent' ? v.substitute : '', notes: v.notes });
+      toast(v.status ? SCHOOL_STATUS[v.status] : 'Cleared');
+    },
+  });
+}
+
+function slotForm(slot) {
+  openForm({
+    title: slot ? 'Edit class block' : 'New class block',
+    values: slot || { day: 1, subject: 'Inglés', from: todayISO() },
+    fields: [
+      { name: 'day', label: 'Day', type: 'select', options: SCHOOL_DAYS },
+      { name: 'group', label: 'Grade / section', required: true, placeholder: 'e.g. 2° B', half: true },
+      { name: 'subject', label: 'Subject', half: true },
+      { name: 'start', label: 'Starts', type: 'time', required: true, half: true },
+      { name: 'end', label: 'Ends', type: 'time', required: true, half: true },
+    ],
+    onSave: (v) => {
+      v.day = Number(v.day);
+      if (slot) Store.update('schoolSchedule', slot.id, v); else Store.add('schoolSchedule', { ...v, from: todayISO() });
+      toast(slot ? 'Block updated' : 'Block added');
+    },
+    onDelete: slot ? () => Store.remove('schoolSchedule', slot.id) : null,
+    deleteConfirm: 'Remove this block from your timetable? Past marks are kept.',
+  });
+}
+
+function scheduleEditor() {
+  const rows = SCHOOL_DAYS.map(([d, name]) => {
+    const slots = Store.data.schoolSchedule.filter((s) => s.day === d).sort((a, b) => a.start.localeCompare(b.start));
+    return `<div class="group-title">${name}</div><div class="list">${slots.map((s) => `
+      <div class="row j-donbosco"><span class="time">${fmtTime(s.start)}</span>
+        <div class="row-main" data-action="edit-slot" data-id="${s.id}"><div class="row-title">${esc(slotTitle(s))}</div>
+        <div class="row-meta"><span>${fmtRange(s.start, s.end)}</span></div></div>
+        <button class="icon-btn sm ghost" data-action="edit-slot" data-id="${s.id}" aria-label="Edit">${icon('edit')}</button></div>`).join('')
+      || '<p class="small muted" style="margin:0 4px">No classes</p>'}</div>`;
+  }).join('');
+  openSheet('My timetable', `<p class="small muted" style="margin:-6px 0 8px">Your classes repeat every week. Tap one to change it.</p>
+    <button class="btn btn-dark btn-sm" data-action="new-slot">${icon('plus')}Add class block</button>${rows}`, { wide: true });
+}
+
+function substitutionForm(x, defaults = {}) {
+  openForm({
+    title: x ? 'Edit substitution' : 'I covered a class',
+    values: x || { date: todayISO(), ...defaults },
+    fields: [
+      { name: 'date', label: 'Date', type: 'date', required: true },
+      { name: 'start', label: 'From', type: 'time', half: true },
+      { name: 'end', label: 'To', type: 'time', half: true },
+      { name: 'group', label: 'Grade / section', placeholder: 'e.g. 3° A', half: true },
+      { name: 'teacher', label: 'Covering for', placeholder: 'Teacher’s name', half: true },
+      { name: 'notes', label: 'Notes', type: 'textarea' },
+    ],
+    onSave: (v) => {
+      if (x) Store.update('substitutions', x.id, v); else Store.add('substitutions', v);
+      toast(x ? 'Substitution updated' : 'Substitution recorded');
+    },
+    onDelete: x ? () => Store.remove('substitutions', x.id) : null,
+  });
+}
+
 function studentDetail(id) {
   const s = studentById(id);
   if (!s) return;
@@ -599,6 +678,7 @@ function quickAdd(date = todayISO()) {
       ${opt('qa-class', 'online', 'laptop', 'Online class')}
       ${opt('new-meeting', 'donbosco', 'chat', 'Guardian meeting')}
       ${opt('new-incident', 'donbosco', 'alert', 'Incident')}
+      ${opt('new-sub', 'donbosco', 'users', 'I covered a class')}
       ${opt('qa-task-personal', 'personal', 'star', 'Personal task')}
       ${opt('new-need', 'personal', 'bag', 'Something I need')}
       ${opt('new-tx', 'other', 'wallet', 'Money movement')}

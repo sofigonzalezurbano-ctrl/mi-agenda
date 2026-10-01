@@ -13,7 +13,7 @@
  * made on another device (even while this one was offline) are not undone.
  */
 
-const SYNC_COLLS = ['tasks', 'students', 'incidents', 'meetings', 'onlineStudents', 'classes', 'needs', 'transactions', 'goals', 'debts'];
+const SYNC_COLLS = ['tasks', 'students', 'incidents', 'meetings', 'onlineStudents', 'classes', 'needs', 'transactions', 'goals', 'debts', 'schoolSchedule', 'substitutions'];
 const DEVICE_ONLY_SETTINGS = ['rateFetchedAt', 'rateError'];
 
 /** JSON with sorted keys, so the same record always produces the same text. */
@@ -44,7 +44,7 @@ const hashOrNull = (json) => (json == null ? null : hashStr(json));
 function flattenData(data) {
   const out = {};
   SYNC_COLLS.forEach((c) => (data[c] || []).forEach((x) => { out[`${c}__${x.id}`] = stableJSON(x); }));
-  Object.entries(data.classLogs || {}).forEach(([k, v]) => { out[`classLogs__${k}`] = stableJSON(v); });
+  ['classLogs', 'schoolLogs'].forEach((m) => Object.entries(data[m] || {}).forEach(([k, v]) => { out[`${m}__${k}`] = stableJSON(v); }));
   Object.entries(data.rates || {}).forEach(([d, v]) => { out[`rates__${d}`] = stableJSON(v); });
   const s = { ...data.settings };
   DEVICE_ONLY_SETTINGS.forEach((k) => delete s[k]);
@@ -63,7 +63,7 @@ function applyDoc(data, key, json) {
     if (val === null) { if (idx >= 0) arr.splice(idx, 1); }
     else if (idx >= 0) arr[idx] = val;
     else arr.push(val);
-  } else if (coll === 'classLogs' || coll === 'rates') {
+  } else if (coll === 'classLogs' || coll === 'schoolLogs' || coll === 'rates') {
     if (val === null) delete data[coll][id]; else data[coll][id] = val;
   } else if (coll === 'settings' && val) {
     Object.assign(data.settings, val);
