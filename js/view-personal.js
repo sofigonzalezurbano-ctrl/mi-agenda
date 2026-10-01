@@ -142,6 +142,30 @@ function walletCard(cur, T) {
   </section>`;
 }
 
+/** Everything you have right now, adding up every month: available money per wallet plus savings. */
+function netWorthCard() {
+  const all = financeTotals(Store.data.transactions);
+  const rate = currentRate();
+  const toUsd = (usd, ves) => (rate ? usd + ves / rate : null);
+  const avail = { USD: all.balance.USD, VES: all.balance.VES };
+  const saved = { USD: all.saving.USD, VES: all.saving.VES };
+  const totalAvail = toUsd(avail.USD, avail.VES);
+  const totalSaved = toUsd(saved.USD, saved.VES);
+  const total = totalAvail === null ? null : totalAvail + totalSaved;
+  const line = (o) => [money(o.USD, 'USD'), o.VES ? money(o.VES, 'VES') : ''].filter(Boolean).join(' + ');
+  return `<section class="card networth" style="margin-bottom:16px" aria-label="Money in total">
+    <div class="nw-main">
+      <span class="small nw-label">My money in total</span>
+      <div class="nw-total">${total === null ? line({ USD: avail.USD + saved.USD, VES: avail.VES + saved.VES }) : money(total, 'USD')}</div>
+      <span class="small nw-label">All months added up${total !== null ? ' · Bs at today’s BCV rate' : ''}</span>
+    </div>
+    <div class="nw-split">
+      <div><span class="small nw-label">Available</span><div class="nw-num">${line(avail)}</div>${avail.VES && totalAvail !== null ? `<span class="small nw-label">≈ ${money(totalAvail, 'USD')}</span>` : ''}</div>
+      <div><span class="small nw-label">In savings</span><div class="nw-num">${line(saved)}</div>${saved.VES && totalSaved !== null ? `<span class="small nw-label">≈ ${money(totalSaved, 'USD')}</span>` : ''}</div>
+    </div>
+  </section>`;
+}
+
 function exchangeSection(txs) {
   const ex = txs.filter((t) => t.type === 'exchange');
   const side = (dir) => {
@@ -223,6 +247,8 @@ function viewFinances() {
       <button class="btn btn-dark" data-action="new-tx" data-type="expense">${icon('plus')}Expense</button>
     </div>
   </header>
+
+  ${netWorthCard()}
 
   ${ratePanel()}
 

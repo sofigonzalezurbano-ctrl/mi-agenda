@@ -341,6 +341,12 @@ details[open].done-list summary::after { content: "–"; }
 .wallet-row { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid rgba(0,0,0,.07); font-size: 14px; }
 .wallet-row.total { border-bottom: 0; font-weight: 700; font-size: 16px; }
 .wallet-row.in .amt { color: #3f8a4e; } .wallet-row.out .amt { color: #c0392b; } .wallet-row.save .amt { color: #3a6fc9; }
+.networth { background: var(--black); color: #fff; display: flex; justify-content: space-between; align-items: center; gap: 20px; flex-wrap: wrap; padding: 22px 24px; }
+.nw-label { color: #bdb6ac; }
+.nw-total { font-size: clamp(30px, 5vw, 44px); font-weight: 700; letter-spacing: -0.03em; line-height: 1.1; margin: 4px 0; overflow-wrap: anywhere; }
+.nw-split { display: flex; gap: 12px; flex-wrap: wrap; }
+.nw-split > div { background: #2a2826; border-radius: 18px; padding: 12px 16px; min-width: 150px; }
+.nw-num { font-size: 18px; font-weight: 700; color: var(--pink); overflow-wrap: anywhere; }
 .ex-box { background: var(--surface-2); border-radius: 18px; padding: 14px 16px; display: flex; flex-direction: column; gap: 2px; }
 .ex-box.buy { background: #dcefdc; } .ex-box.sell { background: #fbe1d0; }
 .wallet-row.ex .amt { color: #3a6fc9; }
