@@ -67,6 +67,19 @@ const ACTIONS = {
     taskForm(null, { jobs: list.includes(job) ? [job, ...list.filter((j) => j !== job)] : list, date: date || '' });
   },
   'edit-task': (el) => taskForm(Store.get('tasks', ds(el).id)),
+  'task-more': (el) => taskMoreSheet(ds(el).id, ds(el).date),
+  'task-postpone': (el) => {
+    let { id, date, to } = ds(el);
+    if (to === 'pick') {
+      to = $('#postpone-date').value;
+      if (!to) { toast('Pick a date first'); return; }
+    }
+    postponeTask(id, date, to);
+    closeModal();
+    toast(to ? `Postponed to ${fmtDate(to)}` : 'Postponed — no date');
+  },
+  'task-cancel': (el) => { cancelTask(ds(el).id, ds(el).date); closeModal(); toast('Task cancelled'); },
+  'task-restore': (el) => { restoreTask(ds(el).id, ds(el).date); closeModal(); toast('Task restored'); },
   'toggle-task': (el) => { toggleAgendaItem('task', ds(el).id); },
   'toggle-item': (el) => {
     const d = ds(el);

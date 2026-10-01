@@ -57,6 +57,7 @@ function taskForm(task, defaults = {}) {
         });
       } else {
         Object.assign(rec, { date: v.date, days: [], endDate: '', done: !!v.done, doneAt: v.done ? (task && task.doneAt) || Date.now() : null });
+        if (v.date) rec.indefinite = false; // giving a postponed-without-date task a date brings it back to the agenda
       }
       if (task) Store.update('tasks', task.id, rec); else Store.add('tasks', rec);
       toast(task ? 'Task updated' : rec.recurring ? 'Fixed task added' : 'Task added');
@@ -68,6 +69,36 @@ function taskForm(task, defaults = {}) {
     const days = DAY_PRESETS[b.dataset.preset];
     $$('#modal-root input[name="days"]').forEach((i) => { i.checked = days.includes(Number(i.value)); });
   }));
+}
+
+/** Postpone / cancel options for a task on a given day. */
+function taskMoreSheet(id, date) {
+  const t = Store.get('tasks', id);
+  if (!t) return;
+  const today = todayISO();
+  const base = date > today ? date : today;
+  const opts = [
+    ['Tomorrow', addDays(base, 1)],
+    ['Next working day', nextWorkday(base)],
+    ['Next Monday', addDays(startOfWeek(base), 7)],
+  ].filter(([, d], i, arr) => arr.findIndex(([, x]) => x === d) === i); // drop duplicates (e.g. Friday: next working day = Monday)
+  const cancelled = t.recurring ? t.skips && t.skips[date] === 'cancelled' : isCancelled(t);
+  openSheet(t.title, `
+    <p class="small muted" style="margin:-6px 0 14px">${esc(JOBS[t.job]?.label || '')}${t.recurring ? ' · fixed task — only ' + fmtDate(date) + ' changes' : t.date ? ' · ' + fmtLongDate(t.date) : ''}</p>
+    <div class="group-title">Postpone</div>
+    <div class="chips">${opts.map(([l, d]) => `<button class="chip-btn" data-action="task-postpone" data-id="${id}" data-date="${date}" data-to="${d}">${l} <span class="muted small">${fmtDate(d, { weekday: 'short', day: 'numeric' })}</span></button>`).join('')}
+      <button class="chip-btn" data-action="task-postpone" data-id="${id}" data-date="${date}" data-to="">No date (indefinite)</button></div>
+    <div class="postpone-pick">
+      <label class="field" style="flex:1"><span>Or pick a date</span><input type="date" id="postpone-date" min="${addDays(today, 1)}"></label>
+      <button class="btn btn-dark btn-sm" data-action="task-postpone" data-id="${id}" data-date="${date}" data-to="pick">Postpone</button>
+    </div>
+    <div class="group-title">More</div>
+    <div class="chips">
+      ${cancelled
+        ? `<button class="btn btn-light btn-sm" data-action="task-restore" data-id="${id}" data-date="${date}">Restore task</button>`
+        : `<button class="btn btn-light btn-sm danger" data-action="task-cancel" data-id="${id}" data-date="${date}">${icon('x')}${t.recurring ? 'Cancel for this day' : 'Cancel task'}</button>`}
+      <button class="btn btn-ghost btn-sm" data-action="edit-task" data-id="${id}">${icon('edit')}Edit task</button>
+    </div>`);
 }
 
 /* ============ Don Bosco: students, incidents, meetings ============ */

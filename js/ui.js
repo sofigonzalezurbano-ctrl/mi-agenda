@@ -156,16 +156,22 @@ function checkBtn(done, attrs, label) {
   return `<button class="check ${done ? 'on' : ''}" ${attrs} aria-label="${done ? 'Mark as not done' : 'Mark as done'}: ${esc(label)}" aria-pressed="${done}">${icon('check')}</button>`;
 }
 
+const moreBtn = (id, date) =>
+  `<button class="icon-btn sm ghost more-btn" data-action="task-more" data-id="${id}" data-date="${date}" aria-label="More options: postpone or cancel">${icon('more')}</button>`;
+const postponedChip = (from) => (from ? `<span class="chip outline">Postponed from ${fmtDate(from, { month: 'short', day: 'numeric' })}</span>` : '');
+
 function taskRow(t, { showJob = true } = {}) {
   if (t.recurring) return routineRow(t, showJob);
-  const late = !t.done && t.date && t.date < todayISO();
-  const when = t.date ? `${relDay(t.date)}${t.time ? ' · ' + fmtTime(t.time) : ''}` : 'No date';
-  return `<div class="row j-${t.job} ${t.done ? 'done' : ''}">
-    ${checkBtn(t.done, `data-action="toggle-task" data-id="${t.id}"`, t.title)}
+  const cancelled = isCancelled(t);
+  const late = !t.done && !cancelled && t.date && t.date < todayISO();
+  const when = t.date ? `${relDay(t.date)}${t.time ? ' · ' + fmtTime(t.time) : ''}` : t.indefinite ? 'Postponed · no date' : 'No date';
+  return `<div class="row j-${t.job} ${t.done || cancelled ? 'done' : ''} ${late ? 'carried' : ''}">
+    ${cancelled ? '<span class="check off-day" aria-hidden="true"></span>' : checkBtn(t.done, `data-action="toggle-task" data-id="${t.id}"`, t.title)}
     <div class="row-main" data-action="edit-task" data-id="${t.id}">
       <div class="row-title">${esc(t.title)}</div>
-      <div class="row-meta">${prioChip(t.priority)}${showJob ? jobChip(t.job) : ''}<span class="${late ? 'danger' : ''}">${late ? 'Overdue · ' : ''}${when}</span></div>
+      <div class="row-meta">${cancelled ? '<span class="chip dark">Cancelled</span>' : ''}${prioChip(t.priority)}${showJob ? jobChip(t.job) : ''}<span class="${late ? 'danger' : ''}">${late ? '⚠ Not done · ' : ''}${when}</span>${t.postponed && t.date ? postponedChip(t.postponedFrom) : ''}</div>
     </div>
+    ${t.done ? '' : moreBtn(t.id, t.date || todayISO())}
   </div>`;
 }
 
@@ -177,12 +183,16 @@ function routineRow(t, showJob) {
   const check = dueToday
     ? checkBtn(done, `data-action="toggle-task" data-id="${t.id}" data-date="${today}"`, t.title + ' (today)')
     : `<span class="check off-day" title="Not scheduled today" aria-hidden="true"></span>`;
-  return `<div class="row j-${t.job} ${done || recurringEnded(t) ? 'done' : ''}">
+  const skipped = t.skips && t.skips[today];
+  const missed = missedRoutineDate(t, today);
+  return `<div class="row j-${t.job} ${done || recurringEnded(t) || skipped ? 'done' : ''} ${missed && !done ? 'carried' : ''}">
     ${check}
     <div class="row-main" data-action="edit-task" data-id="${t.id}">
       <div class="row-title">${esc(t.title)}</div>
-      <div class="row-meta">${prioChip(t.priority)}${showJob ? jobChip(t.job) : ''}<span class="chip outline">${icon('repeat', 'xs')}${esc(recurrenceText(t, 'date'))}</span>${t.time ? `<span>${fmtTime(t.time)}</span>` : ''}<span>${recurringEnded(t) ? 'Ended' : dueToday ? (done ? 'Done today' : 'Due today') : 'Not today'}</span></div>
+      ${missed && !done ? `<div class="carried-note">⚠ Not done on ${fmtDate(missed)} — urgent</div>` : ''}
+      <div class="row-meta">${prioChip(t.priority)}${showJob ? jobChip(t.job) : ''}<span class="chip outline">${icon('repeat', 'xs')}${esc(recurrenceText(t, 'date'))}</span>${t.time ? `<span>${fmtTime(t.time)}</span>` : ''}<span>${recurringEnded(t) ? 'Ended' : skipped ? (skipped === 'cancelled' ? 'Cancelled today' : 'Postponed today') : dueToday ? (done ? 'Done today' : 'Due today') : 'Not today'}</span></div>
     </div>
+    ${dueToday && !done ? moreBtn(t.id, today) : ''}
   </div>`;
 }
 
@@ -190,13 +200,22 @@ function taskBoard(tasks, opts = {}) {
   if (!tasks.length) return emptyState(opts.empty || 'No tasks yet — add your first one!', 'check');
   const routine = tasks.filter((t) => t.recurring && !recurringEnded(t))
     .sort((a, b) => Number(taskIsPending(b)) - Number(taskIsPending(a)) || byPriority(a, b));
-  const pending = tasks.filter((t) => !t.recurring && !t.done).sort(byPriority);
-  const done = tasks.filter((t) => (!t.recurring && t.done) || recurringEnded(t)).sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0));
+  const today = todayISO();
+  const open = tasks.filter((t) => !t.recurring && !t.done && !isCancelled(t));
+  const late = open.filter((t) => t.date && t.date < today).sort((a, b) => a.date.localeCompare(b.date) || byPriority(a, b));
+  const noDate = open.filter((t) => !t.date && t.indefinite);
+  const pending = open.filter((t) => !late.includes(t) && !noDate.includes(t)).sort(byPriority);
+  const done = tasks.filter((t) => (!t.recurring && (t.done || isCancelled(t))) || recurringEnded(t))
+    .sort((a, b) => (b.doneAt || b.cancelledAt || 0) - (a.doneAt || a.cancelledAt || 0));
   let html = '';
   if (routine.length) {
     const left = routine.filter(taskIsPending).length;
     html += `<div class="group-title">${icon('repeat', 'xs')}Fixed tasks <span class="count">${left ? left + ' left today' : 'all done today'}</span></div>
       <div class="list">${routine.map((t) => taskRow(t, opts)).join('')}</div>`;
+  }
+  if (late.length) {
+    html += `<div class="group-title danger">⚠ Not done yet — do these first <span class="count">${late.length}</span></div>
+      <div class="list">${late.map((t) => taskRow(t, opts)).join('')}</div>`;
   }
   Object.keys(PRIORITIES).forEach((p) => {
     const g = pending.filter((t) => (t.priority || 'medium') === p);
@@ -204,11 +223,15 @@ function taskBoard(tasks, opts = {}) {
     html += `<div class="group-title"><span class="pdot p-${p}"></span>${PRIORITIES[p].label} priority <span class="count">${g.length}</span></div>
       <div class="list">${g.map((t) => taskRow(t, opts)).join('')}</div>`;
   });
-  if (!pending.length && !routine.length) html += emptyState('All caught up! Nothing pending.', 'check');
+  if (noDate.length) {
+    html += `<div class="group-title">Postponed · no date <span class="count">${noDate.length}</span></div>
+      <div class="list">${noDate.map((t) => taskRow(t, opts)).join('')}</div>`;
+  }
+  if (!pending.length && !routine.length && !late.length && !noDate.length) html += emptyState('All caught up! Nothing pending.', 'check');
   if (done.length) {
     const key = 'done-' + (opts.key || 'tasks');
     html += `<details class="done-list" data-key="${key}" ${App.openDetails.has(key) ? 'open' : ''}>
-      <summary class="group-title">Completed <span class="count">${done.length}</span></summary>
+      <summary class="group-title">Completed & cancelled <span class="count">${done.length}</span></summary>
       <div class="list">${done.map((t) => taskRow(t, opts)).join('')}</div></details>`;
   }
   return html;
@@ -218,13 +241,16 @@ const KIND_LABEL = { meeting: 'Meeting', class: 'Class', need: 'Need', task: 'Ta
 
 function agendaRow(it, { showTime = true } = {}) {
   const data = `data-kind="${it.kind}" data-id="${it.id}" data-date="${it.date}"`;
-  return `<div class="row j-${it.job} ${it.done ? 'done' : ''}">
-    ${showTime ? `<span class="time">${it.time ? fmtTime(it.time) : 'Anytime'}</span>` : ''}
+  const timeLabel = it.carried ? 'Overdue' : it.time ? fmtTime(it.time) : 'Anytime';
+  return `<div class="row j-${it.job} ${it.done ? 'done' : ''} ${it.carried ? 'carried' : ''}">
+    ${showTime ? `<span class="time">${timeLabel}</span>` : ''}
     ${checkBtn(it.done, `data-action="toggle-item" ${data}`, it.title)}
     <div class="row-main" data-action="open-item" ${data}>
       <div class="row-title">${esc(it.title)}</div>
-      <div class="row-meta">${jobChip(it.job)}${it.recurring ? `<span class="chip outline">${icon('repeat', 'xs')}Fixed</span>` : ''}${['meeting', 'class', 'debt', 'school', 'sub'].includes(it.kind) ? `<span class="chip outline">${KIND_LABEL[it.kind]}</span>` : ''}${it.kind === 'debt' ? '' : prioChip(it.priority)}${it.sub && it.kind !== 'task' && it.kind !== 'need' ? `<span>${esc(it.sub)}</span>` : ''}</div>
+      ${it.carried ? `<div class="carried-note">⚠ Not done on ${fmtDate(it.origDate)} — urgent, do it first</div>` : ''}
+      <div class="row-meta">${jobChip(it.job)}${it.recurring ? `<span class="chip outline">${icon('repeat', 'xs')}Fixed</span>` : ''}${['meeting', 'class', 'debt', 'school', 'sub'].includes(it.kind) ? `<span class="chip outline">${KIND_LABEL[it.kind]}</span>` : ''}${it.kind === 'debt' ? '' : prioChip(it.priority)}${it.kind === 'task' && !it.carried ? postponedChip(it.postponedFrom) : ''}${it.sub && it.kind !== 'task' && it.kind !== 'need' ? `<span>${esc(it.sub)}</span>` : ''}</div>
     </div>
+    ${it.kind === 'task' && !it.done ? moreBtn(it.id, it.carried && !it.recurring ? it.origDate : it.date) : ''}
   </div>`;
 }
 

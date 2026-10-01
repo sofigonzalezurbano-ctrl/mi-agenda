@@ -5,7 +5,8 @@ const STORE_KEY = 'miAgenda.v1';
 
 function emptyData() {
   return {
-    tasks: [],          // {id, title, job, priority, date, time, notes, done, doneAt, recurring, days[], endDate, completions{date: ts}}
+    tasks: [],          // {id, title, job, priority, date, time, notes, done, doneAt, status: ''|cancelled, postponed, postponedFrom, indefinite,
+                        //  recurring, days[], endDate, completions{date: ts}, skips{date: cancelled|postponed}}
     students: [],       // Don Bosco: {id, name, grade, section, guardian, guardianPhone, notes}
     incidents: [],      // {id, studentId, date, type, severity, description, guardianNotified, resolved}
     meetings: [],       // {id, studentId, guardian, date, time, topic, notes, done}
@@ -145,8 +146,17 @@ function schoolStatusText(log) {
 const slotTitle = (s) => `${s.subject || 'Class'} · ${s.group}`;
 
 /* ---- Recurring (fixed) tasks ---- */
+const isCancelled = (t) => t.status === 'cancelled';
+const isWeekend = (iso) => [0, 6].includes(weekday(iso));
+function nextWorkday(iso) {
+  let d = addDays(iso, 1);
+  while (isWeekend(d)) d = addDays(d, 1);
+  return d;
+}
+
 function taskOccursOn(t, iso) {
-  if (!t.recurring) return t.date === iso;
+  if (!t.recurring) return t.date === iso && !isCancelled(t);
+  if (t.skips && t.skips[iso]) return false;
   if (!t.date || iso < t.date) return false;
   if (t.endDate && iso > t.endDate) return false;
   return (t.days || []).includes(weekday(iso));
@@ -155,9 +165,74 @@ const taskDoneOn = (t, iso) => (t.recurring ? !!(t.completions || {})[iso] : !!t
 const recurringEnded = (t) => !!(t.recurring && t.endDate && t.endDate < todayISO());
 /** Still needs doing: a one-off task not done, or a fixed task due today and not done today. */
 function taskIsPending(t) {
-  if (!t.recurring) return !t.done;
+  if (!t.recurring) return !t.done && !isCancelled(t);
   const today = todayISO();
   return taskOccursOn(t, today) && !taskDoneOn(t, today);
+}
+
+/**
+ * Unfinished one-off tasks from earlier days. They come back first (in red) on the next working day:
+ * a Friday task shows up on Monday, and nothing is carried onto weekends.
+ */
+function carriedOverTasks(iso = todayISO()) {
+  if (isWeekend(iso)) return [];
+  return Store.data.tasks
+    .filter((t) => !t.recurring && !t.done && !isCancelled(t) && t.date && t.date < iso && nextWorkday(t.date) <= iso)
+    .sort((a, b) => a.date.localeCompare(b.date) || prioRank(a.priority) - prioRank(b.priority));
+}
+
+/**
+ * Fixed tasks: the most recent day it was due before `iso`, if it was not done (and not cancelled/postponed).
+ * Like one-off tasks it is flagged from the next working day, never on weekends.
+ */
+function missedRoutineDate(t, iso = todayISO()) {
+  if (!t.recurring || isWeekend(iso)) return null;
+  const created = t.createdAt ? toISO(new Date(t.createdAt)) : t.date;
+  for (let k = 1; k <= 14; k++) {
+    const d = addDays(iso, -k);
+    if (d < t.date || d < created) return null;
+    if (t.skips && t.skips[d]) return null;
+    if (!taskOccursOn(t, d)) continue;
+    return !taskDoneOn(t, d) && nextWorkday(d) <= iso ? d : null;
+  }
+  return null;
+}
+
+/** Move a task to another day, or to "no date" (to = ''). A fixed task only moves this one day, as a new one-off task. */
+function postponeTask(id, fromDate, to) {
+  const t = Store.get('tasks', id);
+  if (!t) return;
+  if (t.recurring) {
+    // Also settles a missed earlier day that was showing in red, so the warning goes away.
+    const missed = missedRoutineDate(t, todayISO());
+    Store.update('tasks', id, { skips: { ...(t.skips || {}), ...(missed ? { [missed]: 'postponed' } : {}), [fromDate]: 'postponed' } });
+    Store.add('tasks', {
+      title: t.title, job: t.job, priority: t.priority, time: t.time, notes: t.notes, done: false,
+      date: to, postponed: true, postponedFrom: fromDate, indefinite: !to, fromTask: t.id,
+    });
+  } else {
+    Store.update('tasks', id, { date: to, postponed: true, postponedFrom: t.postponedFrom || t.date || fromDate, indefinite: !to, status: '' });
+  }
+}
+
+function cancelTask(id, date) {
+  const t = Store.get('tasks', id);
+  if (!t) return;
+  if (t.recurring) {
+    const missed = missedRoutineDate(t, todayISO());
+    Store.update('tasks', id, { skips: { ...(t.skips || {}), ...(missed ? { [missed]: 'cancelled' } : {}), [date]: 'cancelled' } });
+  }
+  else Store.update('tasks', id, { status: 'cancelled', cancelledAt: Date.now(), done: false });
+}
+
+function restoreTask(id, date) {
+  const t = Store.get('tasks', id);
+  if (!t) return;
+  if (t.recurring) {
+    const skips = { ...(t.skips || {}) };
+    delete skips[date];
+    Store.update('tasks', id, { skips });
+  } else Store.update('tasks', id, { status: '', cancelledAt: null });
 }
 
 /* ---- Online classes ---- */
@@ -202,10 +277,27 @@ function classOccurrences(fromIso, toIso) {
 function agendaFor(iso) {
   const d = Store.data;
   const items = [];
-  d.tasks.filter((t) => taskOccursOn(t, iso)).forEach((t) => items.push({
-    kind: 'task', id: t.id, date: iso, title: t.title, job: t.job, time: t.time, done: taskDoneOn(t, iso), priority: t.priority,
-    sub: JOBS[t.job]?.label, recurring: !!t.recurring,
+  if (iso === todayISO()) carriedOverTasks(iso).forEach((t) => items.push({
+    kind: 'task', id: t.id, date: iso, title: t.title, job: t.job, time: null, done: false, priority: t.priority,
+    sub: JOBS[t.job]?.label, carried: true, origDate: t.date,
   }));
+  const isToday = iso === todayISO();
+  d.tasks.filter((t) => taskOccursOn(t, iso)).forEach((t) => {
+    // A fixed task left undone last time shows in red today (if it is also due today, today's one carries the warning).
+    const missed = isToday && t.recurring && !taskDoneOn(t, iso) ? missedRoutineDate(t, iso) : null;
+    items.push({
+      kind: 'task', id: t.id, date: iso, title: t.title, job: t.job, time: t.time, done: taskDoneOn(t, iso), priority: t.priority,
+      postponedFrom: t.postponed ? t.postponedFrom : null,
+      sub: JOBS[t.job]?.label, recurring: !!t.recurring, carried: !!missed, origDate: missed || undefined,
+    });
+  });
+  if (isToday) d.tasks.filter((t) => t.recurring && !taskOccursOn(t, iso)).forEach((t) => {
+    const missed = missedRoutineDate(t, iso);
+    if (missed) items.push({
+      kind: 'task', id: t.id, date: missed, title: t.title, job: t.job, time: null, done: false, priority: t.priority,
+      sub: JOBS[t.job]?.label, recurring: true, carried: true, origDate: missed,
+    });
+  });
   d.meetings.filter((m) => m.date === iso).forEach((m) => {
     const s = studentById(m.studentId);
     items.push({
@@ -246,7 +338,8 @@ function agendaFor(iso) {
     kind: 'need', id: n.id, date: iso, title: n.title, job: 'personal', time: null, done: !!n.done, priority: n.priority,
     sub: 'Things I need',
   }));
-  return items.sort(byTime);
+  // Carried-over (not done before) first, then by time.
+  return items.sort((a, b) => Number(!!b.carried) - Number(!!a.carried) || byTime(a, b));
 }
 
 function toggleAgendaItem(kind, id, date) {
@@ -271,11 +364,6 @@ function toggleAgendaItem(kind, id, date) {
     const n = Store.get('needs', id);
     Store.update('needs', id, { done: !n.done });
   }
-}
-
-function overdueTasks() {
-  const t = todayISO();
-  return Store.data.tasks.filter((x) => !x.recurring && !x.done && x.date && x.date < t).sort(byPriority);
 }
 
 /* ---- Debts ---- */

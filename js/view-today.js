@@ -122,7 +122,6 @@ const quoteOfSession = (() => {
 function viewToday() {
   const today = todayISO();
   const items = agendaFor(today);
-  const overdue = overdueTasks();
   const overdueDebts = Store.data.debts.filter((d) => debtStatus(d).overdue);
   const pending = items.filter((i) => !i.done);
   // School classes have their own card with quick buttons, so the reminders list skips them.
@@ -130,6 +129,7 @@ function viewToday() {
   const listPending = listItems.filter((i) => !i.done);
   const done = listItems.filter((i) => i.done);
   const schoolToday = schoolDayList(today);
+  const noDateTasks = Store.data.tasks.filter((t) => !t.recurring && t.indefinite && !t.date && !t.done && !isCancelled(t)).sort(byPriority);
 
   const highPending = Store.data.tasks.filter((t) => taskIsPending(t) && t.priority === 'high').length;
   const nextMeeting = Store.data.meetings
@@ -187,21 +187,24 @@ function viewToday() {
         <div class="list">
           ${listPending.map((i) => agendaRow(i)).join('') || (listItems.length ? emptyState('Everything for today is done. Amazing!', 'sparkle') : emptyState('Nothing scheduled for today. Add tasks, classes or meetings with a date to see them here.', 'calendar'))}
         </div>
+        ${noDateTasks.length ? `<details class="done-list" data-key="today-nodate" ${App.openDetails.has('today-nodate') ? 'open' : ''}>
+          <summary class="group-title">Postponed · no date <span class="count">${noDateTasks.length}</span></summary>
+          <div class="list">${noDateTasks.map((t) => taskRow(t)).join('')}</div></details>` : ''}
         ${done.length ? `<details class="done-list" data-key="today-done" ${App.openDetails.has('today-done') ? 'open' : ''}>
           <summary class="group-title">Done today <span class="count">${done.length}</span></summary>
           <div class="list">${done.map((i) => agendaRow(i)).join('')}</div></details>` : ''}
       </section>
 
-      ${overdue.length || overdueDebts.length ? `
+      ${overdueDebts.length ? `
       <section class="card c-pink" aria-labelledby="od-h">
-        <div class="card-head"><h2 id="od-h">Overdue</h2><span class="muted">${overdue.length + overdueDebts.length} item${overdue.length + overdueDebts.length > 1 ? 's' : ''}</span></div>
+        <div class="card-head"><h2 id="od-h">Overdue</h2><span class="muted">${overdueDebts.length} debt${overdueDebts.length > 1 ? 's' : ''}</span></div>
         <div class="list">${overdueDebts.map((d) => {
           const s = debtStatus(d);
           return `<div class="row j-personal"><div class="row-main" data-action="edit-debt" data-id="${d.id}">
             <div class="row-title">Pay ${esc(d.creditor)} · ${money(debtInstallmentAmount(d, s), d.currency)}</div>
             <div class="row-meta"><span class="chip outline">Debt</span><span class="danger">Was due ${fmtDate(s.nextDue)}</span></div></div>
             <button class="btn btn-dark btn-sm" data-action="pay-debt" data-id="${d.id}">Pay</button></div>`;
-        }).join('')}${overdue.map((t) => taskRow(t)).join('')}</div>
+        }).join('')}</div>
       </section>` : ''}
 
       <section class="card" aria-labelledby="tm-h">
