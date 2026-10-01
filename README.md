@@ -52,3 +52,10 @@ dólares no cambian cuando la tasa sube. Si no hay conexión, se usa la última 
 poner a mano con *Set manually*.
 
 Monedas por defecto: Don Bosco y clases online en **Bs**, 4 Eleven Media en **USD**.
+
+## Publicación (iPhone)
+
+La app está publicada con GitHub Pages en **https://sofigonzalezurbano-ctrl.github.io/mi-agenda/**.
+En el iPhone: abrir en Safari → Compartir → *Agregar a pantalla de inicio*, y usarla siempre desde ese ícono.
+
+Para publicar cambios: hacer commit y `git push`. GitHub actualiza la página en 1–2 minutos.
