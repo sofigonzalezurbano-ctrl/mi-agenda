@@ -12,27 +12,62 @@ const onlineStudentOptions = () => [...Store.data.onlineStudents]
   .map((s) => [s.id, s.name]);
 
 /* ============ Tasks ============ */
+const DAY_PRESETS = { weekdays: [1, 2, 3, 4, 5], everyday: [0, 1, 2, 3, 4, 5, 6] };
+
 function taskForm(task, defaults = {}) {
   const { jobs = JOB_ORDER, ...rest } = defaults;
+  const values = task
+    ? { ...task, startDate: task.date, days: task.days || [] }
+    : { priority: 'medium', job: jobs[0], recurring: false, days: [], startDate: rest.date || todayISO(), ...rest };
   openForm({
-    title: task ? 'Edit task' : 'New task',
-    values: task || { priority: 'medium', job: jobs[0], ...rest },
+    title: task ? (task.recurring ? 'Edit fixed task' : 'Edit task') : 'New task',
+    values,
     fields: [
       { name: 'title', label: 'Task', required: true, placeholder: 'What do you need to do?' },
       { name: 'job', label: 'Job / area', type: 'select', options: jobOptions(task ? JOB_ORDER : jobs) },
       { name: 'priority', label: 'Priority', type: 'pills', options: prioOptions() },
-      { name: 'date', label: 'Date', type: 'date', half: true },
+      { name: 'recurring', label: 'Fixed task — repeats every week', type: 'checkbox' },
+      { name: 'days', label: 'Repeat on', type: 'days', show: (v) => v.recurring },
+      {
+        name: 'presets', type: 'html', show: (v) => v.recurring,
+        html: `<div class="chips"><span class="small muted">Quick pick:</span>
+          <button type="button" class="chip-btn" data-preset="weekdays">Mon–Fri</button>
+          <button type="button" class="chip-btn" data-preset="everyday">Every day</button></div>`,
+      },
+      { name: 'date', label: 'Date', type: 'date', half: true, show: (v) => !v.recurring },
+      { name: 'startDate', label: 'Starts on', type: 'date', half: true, show: (v) => v.recurring },
       { name: 'time', label: 'Time', type: 'time', half: true },
+      { name: 'endDate', label: 'Ends on (optional)', type: 'date', show: (v) => v.recurring },
       { name: 'notes', label: 'Notes', type: 'textarea' },
-      ...(task ? [{ name: 'done', label: 'Completed', type: 'checkbox' }] : []),
+      ...(task ? [{ name: 'done', label: 'Completed', type: 'checkbox', show: (v) => !v.recurring }] : []),
     ],
+    onChange: (v, form) => {
+      // First time "fixed task" is ticked with no days chosen, suggest Mon–Fri.
+      if (v.recurring && !v.days.length && !form.dataset.suggested) {
+        form.dataset.suggested = '1';
+        $$('input[name="days"]', form).forEach((i) => { i.checked = DAY_PRESETS.weekdays.includes(Number(i.value)); });
+      }
+    },
     onSave: (v) => {
-      if (task) Store.update('tasks', task.id, { ...v, doneAt: v.done ? task.doneAt || Date.now() : null });
-      else Store.add('tasks', { ...v, done: false });
-      toast(task ? 'Task updated' : 'Task added');
+      const rec = { title: v.title, job: v.job, priority: v.priority, time: v.time, notes: v.notes, recurring: v.recurring };
+      if (v.recurring) {
+        Object.assign(rec, {
+          date: v.startDate || todayISO(), days: v.days.length ? v.days : [weekday(v.startDate || todayISO())],
+          endDate: v.endDate, done: false, doneAt: null,
+        });
+      } else {
+        Object.assign(rec, { date: v.date, days: [], endDate: '', done: !!v.done, doneAt: v.done ? (task && task.doneAt) || Date.now() : null });
+      }
+      if (task) Store.update('tasks', task.id, rec); else Store.add('tasks', rec);
+      toast(task ? 'Task updated' : rec.recurring ? 'Fixed task added' : 'Task added');
     },
     onDelete: task ? () => Store.remove('tasks', task.id) : null,
+    deleteConfirm: task && task.recurring ? 'Delete this fixed task from every day it repeats?' : undefined,
   });
+  $$('#modal-root [data-preset]').forEach((b) => b.addEventListener('click', () => {
+    const days = DAY_PRESETS[b.dataset.preset];
+    $$('#modal-root input[name="days"]').forEach((i) => { i.checked = days.includes(Number(i.value)); });
+  }));
 }
 
 /* ============ Don Bosco: students, incidents, meetings ============ */
@@ -163,7 +198,7 @@ function meetingRow(m) {
 function onlineStudentForm(s) {
   openForm({
     title: s ? 'Edit online student' : 'New online student',
-    values: s || { currency: 'USD' },
+    values: s || { currency: SOURCE_CURRENCY.online },
     fields: [
       { name: 'name', label: 'Name', required: true },
       { name: 'contact', label: 'Contact (email / WhatsApp)', half: true },
@@ -188,7 +223,7 @@ function classForm(c, defaults = {}) {
     title: c ? 'Edit class' : 'New online class',
     values: c || {
       startDate: todayISO(), duration: 60, recurring: false, days: [],
-      studentId: firstStudent.id, rate: firstStudent.rate, currency: firstStudent.currency || 'USD', ...defaults,
+      studentId: firstStudent.id, rate: firstStudent.rate, currency: firstStudent.currency || SOURCE_CURRENCY.online, ...defaults,
     },
     fields: [
       { name: 'studentId', label: 'Student', type: 'select', options: onlineStudentOptions(), required: true },
@@ -286,10 +321,12 @@ function onlineStudentDetail(id) {
   `, { wide: true });
 }
 
-function recurrenceText(c) {
-  if (!c.recurring) return `Once · ${fmtDate(c.startDate)}`;
-  const days = [1, 2, 3, 4, 5, 6, 0].filter((d) => (c.days || []).includes(d)).map((d) => WEEKDAYS[d]).join(', ');
-  return `Every ${days}${c.endDate ? ' until ' + fmtDate(c.endDate) : ''}`;
+function recurrenceText(c, startField = 'startDate') {
+  if (!c.recurring) return `Once · ${fmtDate(c[startField])}`;
+  const sel = [1, 2, 3, 4, 5, 6, 0].filter((d) => (c.days || []).includes(d));
+  const key = sel.join('');
+  const days = key === '1234560' ? 'Every day' : key === '12345' ? 'Mon–Fri' : 'Every ' + sel.map((d) => WEEKDAYS[d]).join(', ');
+  return `${days}${c.endDate ? ' until ' + fmtDate(c.endDate) : ''}`;
 }
 
 function classPlanRow(c) {
@@ -325,28 +362,49 @@ function needForm(n, defaults = {}) {
 }
 
 /* ============ Personal: finances ============ */
+function conversionHint(amount, currency, date) {
+  const rate = rateOn(date || todayISO());
+  if (!(amount > 0)) return rate ? `BCV rate for this date: ${money(rate, 'VES')} per $1` : 'No exchange rate yet';
+  if (!rate) return 'No exchange rate yet — set it in Finances';
+  return currency === 'VES'
+    ? `≈ ${money(amount / rate, 'USD')} at ${money(rate, 'VES')} per $1`
+    : `≈ ${money(amount * rate, 'VES')} at ${money(rate, 'VES')} per $1`;
+}
+
 function txForm(tx, defaults = {}) {
-  const values = tx
-    ? { ...tx, category_in: tx.category, category_ex: tx.category }
-    : { type: 'expense', currency: 'USD', date: todayISO(), source: 'other', ...defaults };
+  const base = { type: 'expense', currency: 'USD', date: todayISO(), source: 'other', ...defaults };
+  if (!tx && base.type === 'income') base.currency = SOURCE_CURRENCY[base.source] || 'USD';
+  const values = tx ? { ...tx, category_in: tx.category, category_ex: tx.category } : base;
   const goalOpts = [['', 'General savings'], ...Store.data.goals.map((g) => [g.id, g.name])];
   openForm({
     title: tx ? 'Edit movement' : 'New movement',
     values,
     fields: [
       { name: 'type', label: 'Type', type: 'pills', options: [['income', 'Income'], ['expense', 'Expense'], ['saving', 'Saving']] },
+      { name: 'source', label: 'From which job?', type: 'select', options: Object.entries(INCOME_SOURCES), half: true, show: (v) => v.type === 'income' },
+      { name: 'category_in', label: 'Category', type: 'select', options: INCOME_CATS, half: true, show: (v) => v.type === 'income' },
       { name: 'amount', label: 'Amount', type: 'number', half: true, required: true },
       { name: 'currency', label: 'Currency', type: 'select', options: currencyOptions(), half: true },
-      { name: 'category_in', label: 'Category', type: 'select', options: INCOME_CATS, half: true, show: (v) => v.type === 'income' },
-      { name: 'source', label: 'From which job?', type: 'select', options: Object.entries(INCOME_SOURCES), half: true, show: (v) => v.type === 'income' },
+      { name: 'hint', type: 'html', cls: 'small', html: '<span data-conv-hint></span>' },
       { name: 'category_ex', label: 'Category', type: 'select', options: EXPENSE_CATS, show: (v) => v.type === 'expense' },
       { name: 'goalId', label: 'Savings goal', type: 'select', options: goalOpts, show: (v) => v.type === 'saving' },
       { name: 'date', label: 'Date', type: 'date', required: true },
       { name: 'note', label: 'Note', placeholder: 'Optional description' },
     ],
+    onChange: (v, form) => {
+      // Picking a job pre-selects the currency it pays in.
+      if (v.type === 'income' && form.dataset.lastSource && v.source !== form.dataset.lastSource) {
+        form.elements.currency.value = SOURCE_CURRENCY[v.source] || 'USD';
+        v.currency = form.elements.currency.value;
+      }
+      form.dataset.lastSource = v.source;
+      $('[data-conv-hint]', form).textContent = conversionHint(v.amount, v.currency, v.date);
+    },
     onSave: (v) => {
+      const keepRate = tx && tx.currency === 'VES' && tx.date === v.date && tx.rate;
       const rec = {
         type: v.type, amount: v.amount, currency: v.currency, date: v.date, note: v.note,
+        rate: v.currency === 'VES' ? (keepRate ? tx.rate : rateOn(v.date)) : null,
         category: v.type === 'income' ? v.category_in : v.type === 'expense' ? v.category_ex : 'Savings',
         source: v.type === 'income' ? v.source : null,
         goalId: v.type === 'saving' ? v.goalId || null : null,
@@ -359,6 +417,11 @@ function txForm(tx, defaults = {}) {
       if (tx.classKey && Store.data.classLogs[tx.classKey]) Object.assign(Store.data.classLogs[tx.classKey], { paid: false, txId: null });
       Store.remove('transactions', tx.id);
     } : null,
+  });
+  const form = $('#modal-root form');
+  // Live conversion while typing the amount.
+  form.addEventListener('input', () => {
+    $('[data-conv-hint]', form).textContent = conversionHint(Number(form.elements.amount.value), form.elements.currency.value, form.elements.date.value);
   });
 }
 
@@ -385,18 +448,17 @@ function goalForm(g) {
 }
 
 function rateForm() {
-  const st = Store.data.settings;
   openForm({
-    title: 'Exchange rate',
-    values: { rate: st.rate || null, rateDate: st.rateDate || todayISO() },
+    title: 'Set rate manually',
+    values: { rate: currentRate() || null, rateDate: todayISO() },
     fields: [
+      { name: 'info', type: 'html', cls: 'small', html: 'The app updates the BCV rate automatically when you are online. Use this only if it could not update or you need a rate for a specific day.' },
       { name: 'rate', label: 'Bolívares per 1 USD', type: 'number', required: true, half: true },
-      { name: 'rateDate', label: 'Date', type: 'date', half: true },
+      { name: 'rateDate', label: 'Date', type: 'date', half: true, required: true },
     ],
     onSave: (v) => {
-      Object.assign(Store.data.settings, v);
-      Store.save();
-      toast('Rate updated');
+      setRate(v.rate, v.rateDate, 'manual');
+      toast('Rate saved');
     },
   });
 }

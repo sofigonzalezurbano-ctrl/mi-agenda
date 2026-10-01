@@ -126,7 +126,7 @@ function viewToday() {
   const pending = items.filter((i) => !i.done);
   const done = items.filter((i) => i.done);
 
-  const highPending = Store.data.tasks.filter((t) => !t.done && t.priority === 'high').length;
+  const highPending = Store.data.tasks.filter((t) => taskIsPending(t) && t.priority === 'high').length;
   const nextMeeting = Store.data.meetings
     .filter((m) => !m.done && m.date >= today)
     .sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || '')))[0];

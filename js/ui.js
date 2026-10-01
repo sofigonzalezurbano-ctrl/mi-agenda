@@ -156,6 +156,7 @@ function checkBtn(done, attrs, label) {
 }
 
 function taskRow(t, { showJob = true } = {}) {
+  if (t.recurring) return routineRow(t, showJob);
   const late = !t.done && t.date && t.date < todayISO();
   const when = t.date ? `${relDay(t.date)}${t.time ? ' · ' + fmtTime(t.time) : ''}` : 'No date';
   return `<div class="row j-${t.job} ${t.done ? 'done' : ''}">
@@ -167,18 +168,42 @@ function taskRow(t, { showJob = true } = {}) {
   </div>`;
 }
 
+/** Fixed task: the check marks today's occurrence only. */
+function routineRow(t, showJob) {
+  const today = todayISO();
+  const dueToday = taskOccursOn(t, today);
+  const done = dueToday && taskDoneOn(t, today);
+  const check = dueToday
+    ? checkBtn(done, `data-action="toggle-task" data-id="${t.id}" data-date="${today}"`, t.title + ' (today)')
+    : `<span class="check off-day" title="Not scheduled today" aria-hidden="true"></span>`;
+  return `<div class="row j-${t.job} ${done || recurringEnded(t) ? 'done' : ''}">
+    ${check}
+    <div class="row-main" data-action="edit-task" data-id="${t.id}">
+      <div class="row-title">${esc(t.title)}</div>
+      <div class="row-meta">${prioChip(t.priority)}${showJob ? jobChip(t.job) : ''}<span class="chip outline">${icon('repeat', 'xs')}${esc(recurrenceText(t, 'date'))}</span>${t.time ? `<span>${fmtTime(t.time)}</span>` : ''}<span>${recurringEnded(t) ? 'Ended' : dueToday ? (done ? 'Done today' : 'Due today') : 'Not today'}</span></div>
+    </div>
+  </div>`;
+}
+
 function taskBoard(tasks, opts = {}) {
   if (!tasks.length) return emptyState(opts.empty || 'No tasks yet — add your first one!', 'check');
-  const pending = tasks.filter((t) => !t.done).sort(byPriority);
-  const done = tasks.filter((t) => t.done).sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0));
+  const routine = tasks.filter((t) => t.recurring && !recurringEnded(t))
+    .sort((a, b) => Number(taskIsPending(b)) - Number(taskIsPending(a)) || byPriority(a, b));
+  const pending = tasks.filter((t) => !t.recurring && !t.done).sort(byPriority);
+  const done = tasks.filter((t) => (!t.recurring && t.done) || recurringEnded(t)).sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0));
   let html = '';
+  if (routine.length) {
+    const left = routine.filter(taskIsPending).length;
+    html += `<div class="group-title">${icon('repeat', 'xs')}Fixed tasks <span class="count">${left ? left + ' left today' : 'all done today'}</span></div>
+      <div class="list">${routine.map((t) => taskRow(t, opts)).join('')}</div>`;
+  }
   Object.keys(PRIORITIES).forEach((p) => {
     const g = pending.filter((t) => (t.priority || 'medium') === p);
     if (!g.length) return;
     html += `<div class="group-title"><span class="pdot p-${p}"></span>${PRIORITIES[p].label} priority <span class="count">${g.length}</span></div>
       <div class="list">${g.map((t) => taskRow(t, opts)).join('')}</div>`;
   });
-  if (!pending.length) html += emptyState('All caught up! Nothing pending.', 'check');
+  if (!pending.length && !routine.length) html += emptyState('All caught up! Nothing pending.', 'check');
   if (done.length) {
     const key = 'done-' + (opts.key || 'tasks');
     html += `<details class="done-list" data-key="${key}" ${App.openDetails.has(key) ? 'open' : ''}>
@@ -200,7 +225,7 @@ function agendaRow(it, { showTime = true } = {}) {
     ${checkBtn(it.done, `data-action="toggle-item" ${data}`, it.title)}
     <div class="row-main" data-action="open-item" ${data}>
       <div class="row-title">${esc(it.title)}</div>
-      <div class="row-meta">${jobChip(it.job)}${it.kind === 'meeting' || it.kind === 'class' ? `<span class="chip outline">${KIND_LABEL[it.kind]}</span>` : ''}${prioChip(it.priority)}${it.sub && it.kind !== 'task' && it.kind !== 'need' ? `<span>${esc(it.sub)}</span>` : ''}</div>
+      <div class="row-meta">${jobChip(it.job)}${it.recurring ? `<span class="chip outline">${icon('repeat', 'xs')}Fixed</span>` : ''}${it.kind === 'meeting' || it.kind === 'class' ? `<span class="chip outline">${KIND_LABEL[it.kind]}</span>` : ''}${prioChip(it.priority)}${it.sub && it.kind !== 'task' && it.kind !== 'need' ? `<span>${esc(it.sub)}</span>` : ''}</div>
     </div>
     ${paid}
   </div>`;

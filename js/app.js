@@ -137,6 +137,13 @@ const ACTIONS = {
   'new-goal': () => goalForm(),
   'edit-goal': (el) => goalForm(Store.get('goals', ds(el).id)),
   'edit-rate': () => rateForm(),
+  'rate-refresh': () => {
+    toast('Checking BCV rate…');
+    refreshBCVRate({ force: true }).then(() => {
+      App.render();
+      toast(Store.data.settings.rateError > (Store.data.settings.rateFetchedAt || 0) ? 'Could not reach the rate service' : 'BCV rate up to date');
+    });
+  },
 };
 
 /* Actions that only change state inside an open detail sheet: refresh that sheet afterwards. */
@@ -172,6 +179,15 @@ document.addEventListener('change', (e) => {
   App.render();
 });
 document.addEventListener('input', (e) => {
+  // Finances quick converter: fill the other box without re-rendering.
+  const conv = e.target.dataset.conv;
+  if (conv) {
+    const rate = currentRate();
+    const other = $(`[data-conv="${conv === 'USD' ? 'VES' : 'USD'}"]`);
+    const n = parseFloat(e.target.value);
+    other.value = rate && n >= 0 ? (conv === 'USD' ? n * rate : n / rate).toFixed(2) : '';
+    return;
+  }
   if (e.target.dataset.input !== 'db-search') return;
   App.ui.db.q = e.target.value;
   const pos = e.target.selectionStart;
@@ -203,11 +219,17 @@ function checkNewDay() {
   const t = todayISO();
   if (t !== App.lastDay) { App.lastDay = t; App.render(); }
 }
-setInterval(checkNewDay, 60 * 1000);
-document.addEventListener('visibilitychange', () => { if (!document.hidden) checkNewDay(); });
+/* Keep the BCV rate fresh: on open, every 30 min (fetches only if older than 3 h) and when coming back to the tab. */
+function autoRate() {
+  refreshBCVRate().then((changed) => { if (changed && !$('#modal-root').classList.contains('open')) App.render(); });
+}
+setInterval(() => { checkNewDay(); }, 60 * 1000);
+setInterval(autoRate, 30 * 60 * 1000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { checkNewDay(); autoRate(); } });
 
 /* ============ Boot ============ */
 $$('[data-icon]').forEach((el) => { el.outerHTML = icon(el.dataset.icon); });
 Store.load();
 window.addEventListener('hashchange', () => App.onRoute());
 App.onRoute();
+autoRate();

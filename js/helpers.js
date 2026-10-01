@@ -27,6 +27,9 @@ const SEVERITIES = { minor: 'Minor', moderate: 'Moderate', serious: 'Serious' };
 const EXPENSE_CATS = ['Food & groceries', 'Transport', 'Bills & services', 'Rent / Housing', 'Health', 'Shopping', 'Education', 'Entertainment', 'Family', 'Phone & internet', 'Other'];
 const INCOME_CATS = ['Salary', 'Online classes', 'Freelance', 'Bonus', 'Other'];
 const INCOME_SOURCES = { donbosco: 'Don Bosco', foureleven: '4 Eleven Media', online: 'Online Classes', other: 'Other' };
+/** Currency each job pays in (used as the default when recording income). */
+const SOURCE_CURRENCY = { donbosco: 'VES', foureleven: 'USD', online: 'VES', other: 'USD' };
+const SOURCE_JOB_CLASS = { donbosco: 'j-donbosco', foureleven: 'j-movita', online: 'j-online', other: 'j-other' };
 const CURRENCIES = { USD: 'USD ($)', VES: 'Bolívares (Bs)' };
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -121,6 +124,8 @@ const ICONS = {
   star: '<path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/>',
   piggy: '<path d="M5 11a7 6 0 0 1 12-3h2v3l2 1v3h-2.5a7 6 0 0 1-2.5 2.5V20h-3v-2h-3v2H7v-3a6 6 0 0 1-2-6z"/><path d="M3 9.5c0 1.2.8 2 2 2"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+  repeat: '<path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>',
+  refresh: '<path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/>',
   sparkle: '<path d="M12 3c.6 4.5 2 6.5 6.5 7.5-4.5 1-5.9 3-6.5 8-.6-5-2-7-6.5-8C10 9.5 11.4 7.5 12 3z"/>',
 };
 function icon(name, cls = '') {

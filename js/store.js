@@ -5,7 +5,7 @@ const STORE_KEY = 'miAgenda.v1';
 
 function emptyData() {
   return {
-    tasks: [],          // {id, title, job, priority, date, time, notes, done, doneAt}
+    tasks: [],          // {id, title, job, priority, date, time, notes, done, doneAt, recurring, days[], endDate, completions{date: ts}}
     students: [],       // Don Bosco: {id, name, grade, section, guardian, guardianPhone, notes}
     incidents: [],      // {id, studentId, date, type, severity, description, guardianNotified, resolved}
     meetings: [],       // {id, studentId, guardian, date, time, topic, notes, done}
@@ -13,9 +13,10 @@ function emptyData() {
     classes: [],        // {id, studentId, subject, startDate, time, duration, recurring, days[], endDate, rate, currency, notes}
     classLogs: {},      // "classId|date" -> {done, paid, topic, homework, notes, txId}
     needs: [],          // {id, title, priority, cost, currency, date, notes, done}
-    transactions: [],   // {id, type: income|expense|saving, amount, currency, category, source, goalId, date, note}
+    transactions: [],   // {id, type: income|expense|saving, amount, currency, rate (Bs per USD, for VES), category, source, goalId, date, note}
     goals: [],          // {id, name, target, currency, deadline}
-    settings: { name: 'Sofia', rate: 0, rateDate: null },
+    rates: {},          // date -> Bs per USD (BCV history)
+    settings: { name: 'Sofia', rate: 0, rateDate: null, rateSource: null, rateFetchedAt: 0, rateError: null },
   };
 }
 
@@ -36,6 +37,9 @@ const Store = {
     const out = Object.assign(base, obj || {});
     out.settings = Object.assign(emptyData().settings, (obj && obj.settings) || {});
     if (out.settings.name === 'Sofía') out.settings.name = 'Sofia'; // old default had an accent
+    out.rates = Object.assign({}, (obj && obj.rates) || {});
+    // Older versions only kept a single rate: seed the history with it.
+    if (out.settings.rate > 0 && out.settings.rateDate && !out.rates[out.settings.rateDate]) out.rates[out.settings.rateDate] = out.settings.rate;
     return out;
   },
 
@@ -93,6 +97,22 @@ function removeClass(id, save = true) {
   if (save) Store.save();
 }
 
+/* ---- Recurring (fixed) tasks ---- */
+function taskOccursOn(t, iso) {
+  if (!t.recurring) return t.date === iso;
+  if (!t.date || iso < t.date) return false;
+  if (t.endDate && iso > t.endDate) return false;
+  return (t.days || []).includes(weekday(iso));
+}
+const taskDoneOn = (t, iso) => (t.recurring ? !!(t.completions || {})[iso] : !!t.done);
+const recurringEnded = (t) => !!(t.recurring && t.endDate && t.endDate < todayISO());
+/** Still needs doing: a one-off task not done, or a fixed task due today and not done today. */
+function taskIsPending(t) {
+  if (!t.recurring) return !t.done;
+  const today = todayISO();
+  return taskOccursOn(t, today) && !taskDoneOn(t, today);
+}
+
 /* ---- Online classes ---- */
 function classOccursOn(c, iso) {
   if (!c.startDate) return false;
@@ -127,7 +147,7 @@ function setClassPaid(classId, date, paid) {
       const s = onlineStudentById(c.studentId);
       txId = Store.add('transactions', {
         type: 'income', amount: Number(c.rate), currency: c.currency || 'USD', category: 'Online classes',
-        source: 'online', date, note: `${c.subject || 'Class'}${s ? ' – ' + s.name : ''}`, classKey: logKey(classId, date),
+        source: 'online', rate: c.currency === 'VES' ? rateOn(date) : null, date, note: `${c.subject || 'Class'}${s ? ' – ' + s.name : ''}`, classKey: logKey(classId, date),
       }).id;
     }
     updateClassLog(classId, date, { paid: true, done: true, txId });
@@ -152,9 +172,9 @@ function classOccurrences(fromIso, toIso) {
 function agendaFor(iso) {
   const d = Store.data;
   const items = [];
-  d.tasks.filter((t) => t.date === iso).forEach((t) => items.push({
-    kind: 'task', id: t.id, date: iso, title: t.title, job: t.job, time: t.time, done: !!t.done, priority: t.priority,
-    sub: JOBS[t.job]?.label,
+  d.tasks.filter((t) => taskOccursOn(t, iso)).forEach((t) => items.push({
+    kind: 'task', id: t.id, date: iso, title: t.title, job: t.job, time: t.time, done: taskDoneOn(t, iso), priority: t.priority,
+    sub: JOBS[t.job]?.label, recurring: !!t.recurring,
   }));
   d.meetings.filter((m) => m.date === iso).forEach((m) => {
     const s = studentById(m.studentId);
@@ -180,7 +200,14 @@ function agendaFor(iso) {
 function toggleAgendaItem(kind, id, date) {
   if (kind === 'task') {
     const t = Store.get('tasks', id);
-    Store.update('tasks', id, { done: !t.done, doneAt: !t.done ? Date.now() : null });
+    if (t.recurring) {
+      const day = date || todayISO();
+      const completions = { ...(t.completions || {}) };
+      if (completions[day]) delete completions[day]; else completions[day] = Date.now();
+      Store.update('tasks', id, { completions });
+    } else {
+      Store.update('tasks', id, { done: !t.done, doneAt: !t.done ? Date.now() : null });
+    }
   } else if (kind === 'meeting') {
     const m = Store.get('meetings', id);
     Store.update('meetings', id, { done: !m.done });
@@ -194,20 +221,73 @@ function toggleAgendaItem(kind, id, date) {
 
 function overdueTasks() {
   const t = todayISO();
-  return Store.data.tasks.filter((x) => !x.done && x.date && x.date < t).sort(byPriority);
+  return Store.data.tasks.filter((x) => !x.recurring && !x.done && x.date && x.date < t).sort(byPriority);
 }
 
 /* ---- Finances ---- */
-function toUSD(amount, cur) {
+const RATE_URL = 'https://ve.dolarapi.com/v1/dolares/oficial'; // public mirror of the BCV official rate
+const RATE_MAX_AGE = 3 * 60 * 60 * 1000;
+
+/** Bs per USD in effect on a date: that day's BCV rate, else the latest earlier one, else the last known. */
+function rateOn(iso) {
+  const r = Store.data.rates || {};
+  if (r[iso]) return Number(r[iso]);
+  const earlier = Object.keys(r).filter((d) => d <= iso).sort().pop();
+  if (earlier) return Number(r[earlier]);
+  return Number(Store.data.settings.rate) || null;
+}
+const currentRate = () => rateOn(todayISO());
+/** A rate already published for a future day (BCV publishes the next business day's rate in advance). */
+function upcomingRate() {
+  const t = todayISO();
+  const d = Object.keys(Store.data.rates || {}).filter((x) => x > t).sort()[0];
+  return d ? { date: d, rate: Number(Store.data.rates[d]) } : null;
+}
+
+function setRate(rate, date, source) {
+  const st = Store.data.settings;
+  Store.data.rates[date] = rate;
+  if (!st.rateDate || date >= st.rateDate) Object.assign(st, { rate, rateDate: date, rateSource: source });
+  Store.save();
+}
+
+/** Fetches the BCV rate online (at most every few hours unless forced). Resolves true when it changed. */
+async function refreshBCVRate({ force = false } = {}) {
+  const st = Store.data.settings;
+  if (!force && Date.now() - (st.rateFetchedAt || 0) < RATE_MAX_AGE) return false;
+  try {
+    const res = await fetch(RATE_URL, { cache: 'no-store' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const json = await res.json();
+    const rate = Number(json.promedio);
+    if (!(rate > 0)) throw new Error('No rate in response');
+    const date = String(json.fechaActualizacion || '').slice(0, 10) || todayISO();
+    const changed = Number(Store.data.rates[date]) !== rate;
+    st.rateFetchedAt = Date.now();
+    st.rateError = null;
+    setRate(rate, date, 'bcv');
+    return changed;
+  } catch (e) {
+    console.warn('Could not update BCV rate', e);
+    st.rateError = Date.now();
+    Store.save();
+    return false;
+  }
+}
+
+/** Rate used for a movement: the one saved with it, else the BCV rate of its date. */
+const txRate = (t) => Number(t.rate) || rateOn(t.date);
+
+function toUSD(amount, cur, rate = currentRate()) {
   const n = Number(amount) || 0;
   if (cur !== 'VES') return n;
-  const rate = Number(Store.data.settings.rate);
   return rate > 0 ? n / rate : null;
 }
+const txUSD = (t) => toUSD(t.amount, t.currency || 'USD', txRate(t));
 
 function convert(amount, from, to) {
   if (from === to) return Number(amount) || 0;
-  const rate = Number(Store.data.settings.rate);
+  const rate = currentRate();
   if (!(rate > 0)) return null;
   return to === 'VES' ? (Number(amount) || 0) * rate : (Number(amount) || 0) / rate;
 }
@@ -222,13 +302,16 @@ function financeTotals(txs) {
   ['income', 'expense', 'saving'].forEach((type) => {
     const list = txs.filter((t) => t.type === type);
     const USD = list.filter((t) => t.currency !== 'VES').reduce((s, t) => s + Number(t.amount || 0), 0);
-    const VES = list.filter((t) => t.currency === 'VES').reduce((s, t) => s + Number(t.amount || 0), 0);
-    const vesInUsd = toUSD(VES, 'VES');
-    out[type] = { USD, VES, eq: vesInUsd === null ? (VES ? null : USD) : USD + vesInUsd };
+    const ves = list.filter((t) => t.currency === 'VES');
+    const VES = ves.reduce((s, t) => s + Number(t.amount || 0), 0);
+    const vesEqs = ves.map(txUSD);
+    const vesEq = vesEqs.includes(null) ? null : vesEqs.reduce((s, v) => s + v, 0);
+    out[type] = { USD, VES, vesEq, eq: vesEq === null ? null : USD + vesEq };
   });
   const bal = (cur) => out.income[cur] - out.expense[cur] - out.saving[cur];
   const eq = [out.income.eq, out.expense.eq, out.saving.eq].includes(null) ? null : out.income.eq - out.expense.eq - out.saving.eq;
-  out.balance = { USD: bal('USD'), VES: bal('VES'), eq };
+  const vesEq = [out.income.vesEq, out.expense.vesEq, out.saving.vesEq].includes(null) ? null : out.income.vesEq - out.expense.vesEq - out.saving.vesEq;
+  out.balance = { USD: bal('USD'), VES: bal('VES'), vesEq, eq };
   return out;
 }
 

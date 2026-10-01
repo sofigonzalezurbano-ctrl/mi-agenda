@@ -22,7 +22,7 @@ function viewDonBosco() {
   const upcoming = d.meetings.filter((m) => !m.done && m.date >= today);
 
   const summary = [
-    ['tasks', tasks.filter((t) => !t.done).length, 'Pending tasks'],
+    ['tasks', tasks.filter(taskIsPending).length, 'Pending tasks'],
     ['students', d.students.length, 'Students'],
     ['incidents', openInc.length, 'Open incidents'],
     ['meetings', upcoming.length, 'Upcoming meetings'],
@@ -130,7 +130,7 @@ function viewFourEleven() {
     : rest === 'foureleven' ? all.filter((t) => t.job === 'foureleven')
     : all.filter((t) => t.job === rest || t.job === 'foureleven');
   const today = todayISO();
-  const sharedPending = all.filter((t) => t.job === 'foureleven' && !t.done).length;
+  const sharedPending = all.filter((t) => t.job === 'foureleven' && taskIsPending(t)).length;
   return `
   ${workSwitcher('foureleven')}
   <header class="page-head">
@@ -139,8 +139,8 @@ function viewFourEleven() {
   </header>
   <div class="grid grid-4" style="margin-bottom:18px">
     ${FE_JOBS.map((r) => {
-      const pend = all.filter((t) => t.job === r && !t.done);
-      const todayN = pend.filter((t) => t.date === today).length;
+      const pend = all.filter((t) => t.job === r && taskIsPending(t));
+      const todayN = pend.filter((t) => taskOccursOn(t, today)).length;
       const high = pend.filter((t) => t.priority === 'high').length;
       const extra = r !== 'foureleven' && sharedPending ? ` · +${sharedPending} shared` : '';
       return `<button class="job-card j-${r} ${rest === r ? 'active' : ''}" data-action="fe-rest" data-rest="${rest === r ? 'all' : r}" aria-pressed="${rest === r}">
