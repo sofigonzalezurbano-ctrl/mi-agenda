@@ -5,7 +5,7 @@ function greeting() {
   return h < 12 ? 'Good morning' : h < 19 ? 'Good afternoon' : 'Good evening';
 }
 
-const DAILY_QUOTES = [
+const QUOTES = [
   'Small steps every day add up to big results.',
   'You are capable of more than you think.',
   'Progress, not perfection.',
@@ -37,14 +37,87 @@ const DAILY_QUOTES = [
   'You were made to do hard things.',
   'Breathe. You’ve got this.',
   'A positive mindset brings positive things.',
+  'Work hard, play hard.',
+  'Your only limit is you.',
+  'Be the energy you want to attract.',
+  'Good things take time.',
+  'Make it happen.',
+  'Stay humble, work hard, be kind.',
+  'She believed she could, so she did.',
+  'Today is a good day to have a good day.',
+  'Push yourself, because no one else is going to do it for you.',
+  'Success is the sum of small efforts repeated daily.',
+  'Don’t wait for opportunity. Create it.',
+  'Be stronger than your excuses.',
+  'You’re one decision away from a totally different life.',
+  'Keep going. Everything you need will come to you.',
+  'Your vibe attracts your tribe.',
+  'Do it with passion or not at all.',
+  'Wake up with determination, go to bed with satisfaction.',
+  'Small progress is still progress.',
+  'Organized mind, peaceful heart.',
+  'Every expert was once a beginner.',
+  'Shine like the whole universe is yours.',
+  'Turn your can’ts into cans and your dreams into plans.',
+  'Be so good they can’t ignore you.',
+  'Mistakes are proof that you are trying.',
+  'Work in silence, let success make the noise.',
+  'Choose joy today.',
+  'Your hustle is beautiful.',
+  'Grow through what you go through.',
+  'Be a voice, not an echo.',
+  'It always seems impossible until it’s done.',
+  'Gratitude turns what we have into enough.',
+  'Plan your work, then work your plan.',
+  'You inspire your students more than you know.',
+  'Kindness is always in style.',
+  'Make your coffee strong and your goals stronger.',
+  'Don’t count the days, make the days count.',
+  'You can be a masterpiece and a work in progress at the same time.',
+  'Bloom where you are planted.',
+  'Fall seven times, stand up eight.',
+  'Today’s tasks are tomorrow’s achievements.',
+  'Your potential is endless.',
+  'Inhale confidence, exhale doubt.',
+  'Chase what sets your soul on fire.',
+  'Doubt kills more dreams than failure ever will.',
+  'Small habits, big changes.',
+  'You’ve survived 100% of your hardest days.',
+  'Create a life you can’t wait to wake up to.',
+  'Energy flows where attention goes.',
+  'The best view comes after the hardest climb.',
+  'Hustle with heart.',
+  'Let your dreams be bigger than your fears.',
+  'You are your best investment.',
+  'Prioritize your peace.',
+  'Slow progress is better than no progress.',
+  'Be proud, but never satisfied.',
+  'Ordinary days can lead to extraordinary results.',
+  'Your time is now.',
+  'Make yourself a priority too.',
+  'Courage over comfort.',
+  'Keep your eyes on the stars and your feet on the ground.',
+  'Learning never exhausts the mind.',
+  'Abundance starts with a grateful heart.',
+  'Stay focused and extra sparkly.',
+  'Believe you can and you’re halfway there.',
+  'The harder you work, the luckier you get.',
+  'Be the reason someone smiles today.',
+  'Trust the process.',
+  'You are enough, just as you are.',
+  'Three jobs, one queen. You’ve got this.',
 ];
 
-/** Same quote all day, a different one each day. */
-function dailyQuote(iso) {
-  const d = fromISO(iso);
-  const dayOfYear = Math.round((d - new Date(d.getFullYear(), 0, 1)) / 86400000);
-  return DAILY_QUOTES[(dayOfYear + d.getFullYear()) % DAILY_QUOTES.length];
-}
+/** Random quote chosen once per app load (refresh = new quote), never the same as last time. */
+const QUOTE_KEY = 'miAgenda.lastQuote';
+const quoteOfSession = (() => {
+  let last = -1;
+  try { last = Number(localStorage.getItem(QUOTE_KEY) ?? -1); } catch (e) { /* storage unavailable */ }
+  let i;
+  do { i = Math.floor(Math.random() * QUOTES.length); } while (i === last && QUOTES.length > 1);
+  try { localStorage.setItem(QUOTE_KEY, String(i)); } catch (e) { /* storage unavailable */ }
+  return QUOTES[i];
+})();
 
 function viewToday() {
   const today = todayISO();
@@ -65,7 +138,7 @@ function viewToday() {
     <div>
       <p class="eyebrow">${fmtLongDate(today)}</p>
       <h1>${greeting()},<br>${esc(Store.data.settings.name)}!</h1>
-      <p class="sub">${esc(dailyQuote(today))} ✿</p>
+      <p class="sub">${esc(quoteOfSession)} ✿</p>
     </div>
     <div class="head-actions">
       <button class="btn btn-dark" data-action="quick-add">${icon('plus')}Add</button>
