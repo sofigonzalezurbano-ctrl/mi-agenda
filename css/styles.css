@@ -70,8 +70,14 @@ h1, h2, h3 { margin: 0; letter-spacing: -0.02em; font-weight: 600; }
   border-radius: 28px; padding: 26px 16px 18px;
   display: flex; flex-direction: column; overflow-y: auto;
 }
-.brand { font-size: 24px; font-weight: 700; letter-spacing: -0.03em; padding: 0 10px 18px; display: flex; align-items: center; gap: 6px; }
-.brand-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--pink); margin-top: 6px; }
+/* Wordmark: chunky "agenda" whose last "a" is the smiley marshmallow blob */
+.brand { padding: 0 10px 18px; color: var(--pink); line-height: .9; user-select: none; }
+.wm-my { display: inline-block; font-weight: 800; font-size: 17px; transform: rotate(-7deg) translate(2px, 4px); }
+.wm-main { display: flex; align-items: flex-end; font-weight: 800; font-size: 36px; letter-spacing: -0.045em; }
+.wm-blob { width: 34px; height: 34px; margin: 0 0 0 2px; transform: rotate(-10deg); flex: none; }
+.wm-blob path, .wm-blob circle { fill: var(--pink); }
+.wm-blob circle { fill: var(--black); }
+.wm-blob .smile { fill: none; stroke: var(--black); stroke-width: 5; stroke-linecap: round; }
 .nav-label { font-size: 12px; color: #8e877d; margin: 14px 10px 6px; }
 .side-nav { display: flex; flex-direction: column; gap: 2px; }
 .side-nav a, .side-btn {
