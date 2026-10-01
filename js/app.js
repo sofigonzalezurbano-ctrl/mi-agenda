@@ -62,7 +62,7 @@ const ACTIONS = {
   /* tasks & agenda */
   'new-task': (el) => {
     const { job, jobs, date } = ds(el);
-    const list = jobs === 'restaurants' ? RESTAURANTS : jobs === 'personal' ? ['personal'] : jobs ? jobs.split(',') : [job || 'donbosco'];
+    const list = jobs === 'restaurants' ? FE_JOBS : jobs === 'personal' ? ['personal'] : jobs ? jobs.split(',') : [job || 'donbosco'];
     taskForm(null, { jobs: list.includes(job) ? [job, ...list.filter((j) => j !== job)] : list, date: date || '' });
   },
   'edit-task': (el) => taskForm(Store.get('tasks', ds(el).id)),
@@ -84,7 +84,7 @@ const ACTIONS = {
 
   /* quick-add shortcuts */
   'qa-task-donbosco': (el) => taskForm(null, { jobs: ['donbosco'], date: ds(el).date }),
-  'qa-task-foureleven': (el) => taskForm(null, { jobs: RESTAURANTS, date: ds(el).date }),
+  'qa-task-foureleven': (el) => taskForm(null, { jobs: FE_JOBS, date: ds(el).date }),
   'qa-task-personal': (el) => taskForm(null, { jobs: ['personal'], date: ds(el).date }),
   'qa-class': (el) => classForm(null, { startDate: ds(el).date }),
 

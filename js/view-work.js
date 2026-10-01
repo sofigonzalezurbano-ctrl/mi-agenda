@@ -124,35 +124,39 @@ function incidentsTab() {
 /* ============ 4 Eleven Media ============ */
 function viewFourEleven() {
   const rest = App.ui.fe.rest;
-  const all = Store.data.tasks.filter((t) => RESTAURANTS.includes(t.job));
-  const shown = rest === 'all' ? all : all.filter((t) => t.job === rest);
+  const all = Store.data.tasks.filter((t) => FE_JOBS.includes(t.job));
+  // A restaurant's view also includes the tasks shared by all three.
+  const shown = rest === 'all' ? all
+    : rest === 'foureleven' ? all.filter((t) => t.job === 'foureleven')
+    : all.filter((t) => t.job === rest || t.job === 'foureleven');
   const today = todayISO();
+  const sharedPending = all.filter((t) => t.job === 'foureleven' && !t.done).length;
   return `
   ${workSwitcher('foureleven')}
   <header class="page-head">
     <div><p class="eyebrow">Executive Assistant</p><h1>4 Eleven Media</h1></div>
     <div class="head-actions"><button class="btn btn-dark" data-action="new-task" data-job="${rest === 'all' ? 'movita' : rest}" data-jobs="restaurants">${icon('plus')}Task</button></div>
   </header>
-  <div class="grid grid-3" style="margin-bottom:18px">
-    ${RESTAURANTS.map((r) => {
-      const ts = all.filter((t) => t.job === r);
-      const pend = ts.filter((t) => !t.done);
+  <div class="grid grid-4" style="margin-bottom:18px">
+    ${FE_JOBS.map((r) => {
+      const pend = all.filter((t) => t.job === r && !t.done);
       const todayN = pend.filter((t) => t.date === today).length;
       const high = pend.filter((t) => t.priority === 'high').length;
+      const extra = r !== 'foureleven' && sharedPending ? ` · +${sharedPending} shared` : '';
       return `<button class="job-card j-${r} ${rest === r ? 'active' : ''}" data-action="fe-rest" data-rest="${rest === r ? 'all' : r}" aria-pressed="${rest === r}">
         <span class="name">${esc(JOBS[r].label)}</span>
         <span class="num">${pend.length}</span>
-        <span class="muted">pending · ${todayN} today · ${high} high</span>
+        <span class="muted">pending · ${todayN} today · ${high} high${extra}</span>
       </button>`;
     }).join('')}
   </div>
   <div class="tabs-row">
     <div class="chips">
-      <button class="chip-btn ${rest === 'all' ? 'active' : ''}" data-action="fe-rest" data-rest="all">All restaurants</button>
-      ${RESTAURANTS.map((r) => `<button class="chip-btn ${rest === r ? 'active' : ''}" data-action="fe-rest" data-rest="${r}"><span class="nav-dot j-${r}"></span>${esc(JOBS[r].label)}</button>`).join('')}
+      <button class="chip-btn ${rest === 'all' ? 'active' : ''}" data-action="fe-rest" data-rest="all">Everything</button>
+      ${FE_JOBS.map((r) => `<button class="chip-btn ${rest === r ? 'active' : ''}" data-action="fe-rest" data-rest="${r}"><span class="nav-dot j-${r}"></span>${esc(JOBS[r].label)}</button>`).join('')}
     </div>
   </div>
-  <div class="card">${taskBoard(shown, { showJob: rest === 'all', key: 'fe-' + rest })}</div>`;
+  <div class="card">${taskBoard(shown, { showJob: rest !== 'foureleven', key: 'fe-' + rest })}</div>`;
 }
 
 /* ============ Online classes ============ */

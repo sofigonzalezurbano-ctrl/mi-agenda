@@ -6,11 +6,14 @@ const JOBS = {
   movita:   { label: 'Movita Juice Bar', group: '4 Eleven Media' },
   alas:     { label: 'Alas Kitchen', group: '4 Eleven Media' },
   casita:   { label: 'La Casita Mexicana', group: '4 Eleven Media' },
+  foureleven: { label: 'All 3 restaurants', group: '4 Eleven Media' },
   online:   { label: 'Online Classes', group: 'Online Teacher' },
   personal: { label: 'Personal', group: 'Personal' },
 };
-const JOB_ORDER = ['donbosco', 'movita', 'alas', 'casita', 'online', 'personal'];
+const JOB_ORDER = ['donbosco', 'movita', 'alas', 'casita', 'foureleven', 'online', 'personal'];
 const RESTAURANTS = ['movita', 'alas', 'casita'];
+/** Jobs that belong to 4 Eleven Media: each restaurant plus tasks shared by all three. */
+const FE_JOBS = [...RESTAURANTS, 'foureleven'];
 
 const PRIORITIES = {
   high:   { label: 'High', rank: 0 },

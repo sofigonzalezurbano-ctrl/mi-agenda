@@ -33,7 +33,13 @@
 .j-casita     { --c: #ea8a3c; --cs: #ffd8b6; }
 .j-donbosco   { --c: #1f9c8a; --cs: #bde9e1; }
 .j-personal   { --c: #7f9a47; --cs: #dbe6c1; }
-.j-foureleven { --c: #8a5cd6; --cs: #ded0f7; }
+.j-foureleven { --c: #6f6bc9; --cs: #e4def5; }
+/* Tasks shared by the three restaurants: blend Movita, Alas and Casita colours */
+.row.j-foureleven::before { background: linear-gradient(180deg, #8a5cd6, #3a9ad6, #ea8a3c); }
+.chip.j-foureleven, .job-card.j-foureleven, .mchip.j-foureleven, .wcard.j-foureleven {
+  background: linear-gradient(110deg, #ded0f7, #c6e6f8 55%, #ffd8b6);
+}
+.nav-dot.j-foureleven { background: conic-gradient(#8a5cd6 0 33%, #3a9ad6 0 66%, #ea8a3c 0); }
 .j-other      { --c: #8d867c; --cs: #e8e1d5; }
 
 * { box-sizing: border-box; }
