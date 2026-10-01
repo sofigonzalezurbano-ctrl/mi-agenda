@@ -437,7 +437,7 @@ function settingsSheet() {
     </div>`);
   $('#settings-form').addEventListener('submit', (e) => {
     e.preventDefault();
-    st.name = e.target.elements.name.value.trim() || 'Sofía';
+    st.name = e.target.elements.name.value.trim() || 'Sofia';
     Store.save();
     closeModal(); App.render(); toast('Saved');
   });

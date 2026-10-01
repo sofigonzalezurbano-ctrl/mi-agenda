@@ -15,7 +15,7 @@ function emptyData() {
     needs: [],          // {id, title, priority, cost, currency, date, notes, done}
     transactions: [],   // {id, type: income|expense|saving, amount, currency, category, source, goalId, date, note}
     goals: [],          // {id, name, target, currency, deadline}
-    settings: { name: 'Sofía', rate: 0, rateDate: null },
+    settings: { name: 'Sofia', rate: 0, rateDate: null },
   };
 }
 
@@ -35,6 +35,7 @@ const Store = {
     const base = emptyData();
     const out = Object.assign(base, obj || {});
     out.settings = Object.assign(emptyData().settings, (obj && obj.settings) || {});
+    if (out.settings.name === 'Sofía') out.settings.name = 'Sofia'; // old default had an accent
     return out;
   },
 

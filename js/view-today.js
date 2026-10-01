@@ -5,6 +5,47 @@ function greeting() {
   return h < 12 ? 'Good morning' : h < 19 ? 'Good afternoon' : 'Good evening';
 }
 
+const DAILY_QUOTES = [
+  'Small steps every day add up to big results.',
+  'You are capable of more than you think.',
+  'Progress, not perfection.',
+  'One task at a time, one day at a time.',
+  'Your effort today is your success tomorrow.',
+  'Be proud of how far you have come.',
+  'Discipline is choosing what you want most over what you want now.',
+  'Make today so good that yesterday gets jealous.',
+  'You don’t have to be perfect to be amazing.',
+  'Start where you are. Use what you have. Do what you can.',
+  'Great things never come from comfort zones.',
+  'Believe in yourself and all that you are.',
+  'Done is better than perfect.',
+  'Every day is a fresh start.',
+  'Dream big, work hard, stay focused.',
+  'Your future self will thank you.',
+  'Focus on the step in front of you, not the whole staircase.',
+  'Hard work beats talent when talent doesn’t work hard.',
+  'You are doing better than you think.',
+  'Rest if you must, but don’t quit.',
+  'Little by little, a little becomes a lot.',
+  'Teach, inspire, grow — and repeat.',
+  'The secret of getting ahead is getting started.',
+  'Stay patient and trust your journey.',
+  'Do something today that your future self will love.',
+  'Strong women build each other up — starting with themselves.',
+  'Consistency is your superpower.',
+  'Celebrate every small win.',
+  'You were made to do hard things.',
+  'Breathe. You’ve got this.',
+  'A positive mindset brings positive things.',
+];
+
+/** Same quote all day, a different one each day. */
+function dailyQuote(iso) {
+  const d = fromISO(iso);
+  const dayOfYear = Math.round((d - new Date(d.getFullYear(), 0, 1)) / 86400000);
+  return DAILY_QUOTES[(dayOfYear + d.getFullYear()) % DAILY_QUOTES.length];
+}
+
 function viewToday() {
   const today = todayISO();
   const items = agendaFor(today);
@@ -24,7 +65,7 @@ function viewToday() {
     <div>
       <p class="eyebrow">${fmtLongDate(today)}</p>
       <h1>${greeting()},<br>${esc(Store.data.settings.name)}!</h1>
-      <p class="sub">Work hard, play hard ✿</p>
+      <p class="sub">${esc(dailyQuote(today))} ✿</p>
     </div>
     <div class="head-actions">
       <button class="btn btn-dark" data-action="quick-add">${icon('plus')}Add</button>
