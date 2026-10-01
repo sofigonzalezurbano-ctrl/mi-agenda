@@ -58,7 +58,7 @@ Monedas por defecto: Don Bosco y clases online en **Bs**, 4 Eleven Media en **US
 La app está publicada con GitHub Pages en **https://sofigonzalezurbano-ctrl.github.io/mi-agenda/**.
 En el iPhone: abrir en Safari → Compartir → *Agregar a pantalla de inicio*, y usarla siempre desde ese ícono.
 
-Para publicar cambios: hacer commit y `git push`. GitHub actualiza la página en 1–2 minutos.
+Para publicar cambios: `./bump-version.sh` (evita que el navegador use archivos viejos), commit y `git push`. GitHub actualiza la página en 1–2 minutos.
 
 ## Sincronización entre dispositivos
 
