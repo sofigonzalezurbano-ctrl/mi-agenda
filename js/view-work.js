@@ -104,6 +104,85 @@ function schoolScheduleTab() {
   </div>`;
 }
 
+/* ============ Don Bosco assessments & evaluations ============ */
+const SKILL_CLASS = { reading: 'j-alas', writing: 'j-movita', listening: 'j-casita', speaking: 'j-online' };
+
+function assessmentsTab() {
+  const ui = App.ui.db;
+  const groups = schoolGroups();
+  const list = Store.data.assessments
+    .filter((a) => ui.asGroup === 'all' || a.group === ui.asGroup)
+    .filter((a) => ui.asSkill === 'all' || a.skill === ui.asSkill)
+    .sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || 0) - (a.createdAt || 0));
+  const month = monthKey(todayISO());
+  const thisMonth = Store.data.assessments.filter((a) => a.date.startsWith(month) && (ui.asGroup === 'all' || a.group === ui.asGroup));
+  return `
+  <div class="grid grid-4" style="margin-bottom:16px">
+    ${Object.entries(SKILLS).map(([k, l]) => `<button class="job-card ${SKILL_CLASS[k]} ${ui.asSkill === k ? 'active' : ''}" data-action="as-skill" data-skill="${ui.asSkill === k ? 'all' : k}">
+      <span class="name">${l}</span><span class="num">${thisMonth.filter((a) => a.skill === k).length}</span><span class="muted">this month</span></button>`).join('')}
+  </div>
+  <div class="tabs-row">
+    <div class="chips">${['all', ...Object.keys(SKILLS)].map((k) => `<button class="chip-btn ${ui.asSkill === k ? 'active' : ''}" data-action="as-skill" data-skill="${k}">${k === 'all' ? 'All skills' : SKILLS[k]}</button>`).join('')}</div>
+    <select class="select-pill" data-change="as-group" aria-label="Filter by group"><option value="all">All groups</option>${groups.map((g) => `<option ${g === ui.asGroup ? 'selected' : ''}>${esc(g)}</option>`).join('')}</select>
+  </div>
+  <section class="card"><div class="list">${list.map((a) => {
+    const c = countMarks(a.marks);
+    return `<div class="row ${SKILL_CLASS[a.skill] || 'j-donbosco'}">
+      <span class="time">${fmtDate(a.date, { month: 'short', day: 'numeric' })}</span>
+      <div class="row-main" data-action="edit-assessment" data-id="${a.id}">
+        <div class="row-title">${esc(a.title)}</div>
+        <div class="row-meta"><span class="chip">${SKILLS[a.skill] || ''}</span><span class="chip outline">${esc(a.group)}</span>
+          <span class="mk-count participated">✓ ${c.participated}</span><span class="mk-count not">✗ ${c.not}</span><span class="mk-count absent">Absent ${c.absent}</span></div>
+        ${a.description ? `<div class="small muted" style="margin-top:6px">${esc(a.description)}</div>` : ''}
+      </div>
+    </div>`;
+  }).join('') || emptyState('Record your reading, writing, listening and speaking practices and mark who participated.', 'note')}</div></section>`;
+}
+
+function evaluationsTab() {
+  const ui = App.ui.db;
+  const today = todayISO();
+  const pend = pendingMakeups().filter((p) => ui.evGroup === 'all' || p.ev.group === ui.evGroup);
+  const groups = schoolGroups();
+  const list = Store.data.evaluations
+    .filter((e) => ui.evGroup === 'all' || e.group === ui.evGroup)
+    .sort((a, b) => b.date.localeCompare(a.date));
+  return `
+  <section class="card owe-box" style="margin-bottom:16px">
+    <div class="card-head"><h2>Students who owe evaluations</h2><span class="chip ${pend.length ? 'p-high' : 'outline'}">${pend.length}</span></div>
+    <div class="list">${pend.map((p) => {
+      const late = p.makeupDate && p.makeupDate < today;
+      return `<div class="row j-donbosco ${late ? 'carried' : ''}">
+        <span class="avatar sm">${esc(initials(p.student.name))}</span>
+        <div class="row-main" data-action="makeup-date" data-id="${p.ev.id}" data-student="${p.student.id}">
+          <div class="row-title">${esc(p.student.name)} <span class="muted">· ${esc(studentGroup(p.student))}</span></div>
+          <div class="row-meta"><span class="chip">${esc(p.ev.title)}</span><span>Missed ${fmtDate(p.ev.date, { month: 'short', day: 'numeric' })}</span>
+            <span class="${late ? 'danger' : ''}">${p.makeupDate ? `${late ? '⚠ Make-up was ' : 'Make-up: '}${relDay(p.makeupDate)}` : 'No make-up date yet'}</span></div>
+        </div>
+        <button class="btn btn-light btn-sm" data-action="makeup-date" data-id="${p.ev.id}" data-student="${p.student.id}">${icon('calendar')}${p.makeupDate ? 'Change' : 'Set date'}</button>
+        <button class="btn btn-dark btn-sm" data-action="makeup-done" data-id="${p.ev.id}" data-student="${p.student.id}">${icon('check')}Done</button>
+      </div>`;
+    }).join('') || emptyState('Nobody owes an evaluation. 🎉', 'check')}</div>
+  </section>
+  <div class="tabs-row">
+    <h2 style="font-size:19px">Evaluations</h2>
+    <select class="select-pill" data-change="ev-group" aria-label="Filter by group"><option value="all">All groups</option>${groups.map((g) => `<option ${g === ui.evGroup ? 'selected' : ''}>${esc(g)}</option>`).join('')}</select>
+  </div>
+  <section class="card"><div class="list">${list.map((e) => {
+    const abs = Object.values(e.absences || {});
+    const owed = abs.filter((a) => !a.done).length;
+    const total = studentsInGroup(e.group).length;
+    return `<div class="row j-donbosco">
+      <span class="time">${fmtDate(e.date, { month: 'short', day: 'numeric' })}</span>
+      <div class="row-main" data-action="edit-evaluation" data-id="${e.id}">
+        <div class="row-title">${esc(e.title)}</div>
+        <div class="row-meta"><span class="chip">${esc(e.kind || 'Evaluation')}</span><span class="chip outline">${esc(e.group)}</span>
+          <span>${total - abs.length}/${total} present</span>${abs.length ? `<span class="${owed ? 'danger' : ''}">${abs.length} absent${owed ? ` · ${owed} still owe${owed > 1 ? '' : 's'} it` : ' · all made up'}</span>` : ''}</div>
+      </div>
+    </div>`;
+  }).join('') || emptyState('Add an evaluation, mark who missed it and set their make-up date.', 'note')}</div></section>`;
+}
+
 /* ============ Don Bosco ============ */
 function viewDonBosco() {
   const ui = App.ui.db;
@@ -125,6 +204,12 @@ function viewDonBosco() {
   if (ui.tab === 'schedule') {
     addBtn = `<button class="btn btn-dark" data-action="new-sub">${icon('plus')}Substitution I did</button>`;
     content = schoolScheduleTab();
+  } else if (ui.tab === 'assessments') {
+    addBtn = `<button class="btn btn-dark" data-action="new-assessment">${icon('plus')}Activity</button>`;
+    content = assessmentsTab();
+  } else if (ui.tab === 'evaluations') {
+    addBtn = `<button class="btn btn-dark" data-action="new-evaluation">${icon('plus')}Evaluation</button>`;
+    content = evaluationsTab();
   } else if (ui.tab === 'tasks') {
     addBtn = `<button class="btn btn-dark" data-action="new-task" data-job="donbosco">${icon('plus')}Task</button>`;
     content = `<div class="card">${taskBoard(tasks, { showJob: false, key: 'donbosco' })}</div>`;
@@ -155,7 +240,7 @@ function viewDonBosco() {
     ${summary.map(([tab, n, l]) => `<button class="job-card j-donbosco ${ui.tab === tab ? 'active' : ''}" data-action="db-tab" data-tab="${tab}"><span class="num">${n}</span><span class="name">${l}</span></button>`).join('')}
   </div>
   <div class="tabs-row">
-    ${tabSeg(ui.tab, [['schedule', 'Schedule'], ['tasks', 'Tasks'], ['students', 'Students'], ['incidents', 'Incidents'], ['meetings', 'Meetings']], 'db-tab')}
+    ${tabSeg(ui.tab, [['schedule', 'Schedule'], ['assessments', 'Assessments'], ['evaluations', 'Evaluations'], ['tasks', 'Tasks'], ['students', 'Students'], ['incidents', 'Incidents'], ['meetings', 'Meetings']], 'db-tab')}
   </div>
   ${content}`;
 }

@@ -16,7 +16,7 @@ Doble clic en `index.html` (se abre en el navegador). No necesita internet, salv
 |---|---|
 | **Today** | Saludo, % de progreso del día (gráfico por trabajo), recordatorios del día, tareas vencidas y mañana |
 | **Calendar** | Vistas Día / Semana / Mes con todo lo que tiene fecha, coloreado por trabajo |
-| **Don Bosco** | Horario semanal de clases (marcar dada / falté con quién me suplió / no hubo clase) y suplencias que hice; tareas con prioridad (y tareas fijas que se repiten los días que elijas), estudiantes por grado/sección, incidencias (tipo, gravedad, notificado, resuelto), reuniones con representantes |
+| **Don Bosco** | Assessments (actividades de reading, writing, listening, speaking con participación por estudiante), evaluaciones (quién faltó, quién debe y fecha de recuperación), horario semanal de clases (marcar dada / falté con quién me suplió / no hubo clase) y suplencias que hice; tareas con prioridad (y tareas fijas que se repiten los días que elijas), estudiantes por grado/sección, incidencias (tipo, gravedad, notificado, resuelto), reuniones con representantes |
 | **4 Eleven Media** | Tareas (únicas o fijas) por restaurante: Movita Juice Bar, Alas Kitchen, La Casita Mexicana, o "All 3 restaurants" para tareas de los tres |
 | **Online Classes** | Estudiantes y horario semanal: días y horas (puede ser una hora distinta por día), notas por clase, suspender o posponer una clase (con clase de reposición o "por reprogramar") |
 | **Things I need** | Lista de cosas que necesito con prioridad y costo estimado, y tareas personales |

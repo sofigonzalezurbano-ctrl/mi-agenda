@@ -237,7 +237,7 @@ function taskBoard(tasks, opts = {}) {
   return html;
 }
 
-const KIND_LABEL = { meeting: 'Meeting', class: 'Class', need: 'Need', task: 'Task', debt: 'Debt', school: 'Class', sub: 'Substitution' };
+const KIND_LABEL = { meeting: 'Meeting', class: 'Class', need: 'Need', task: 'Task', debt: 'Debt', school: 'Class', sub: 'Substitution', makeup: 'Make-up' };
 
 function agendaRow(it, { showTime = true } = {}) {
   const data = `data-kind="${it.kind}" data-id="${it.id}" data-date="${it.date}"`;
@@ -248,7 +248,7 @@ function agendaRow(it, { showTime = true } = {}) {
     <div class="row-main" data-action="open-item" ${data}>
       <div class="row-title">${esc(it.title)}</div>
       ${it.carried ? `<div class="carried-note">⚠ Not done on ${fmtDate(it.origDate)} — urgent, do it first</div>` : ''}
-      <div class="row-meta">${jobChip(it.job)}${it.recurring ? `<span class="chip outline">${icon('repeat', 'xs')}Fixed</span>` : ''}${['meeting', 'class', 'debt', 'school', 'sub'].includes(it.kind) ? `<span class="chip outline">${KIND_LABEL[it.kind]}</span>` : ''}${it.kind === 'debt' ? '' : prioChip(it.priority)}${it.kind === 'task' && !it.carried ? postponedChip(it.postponedFrom) : ''}${it.sub && it.kind !== 'task' && it.kind !== 'need' ? `<span>${esc(it.sub)}</span>` : ''}</div>
+      <div class="row-meta">${jobChip(it.job)}${it.recurring ? `<span class="chip outline">${icon('repeat', 'xs')}Fixed</span>` : ''}${['meeting', 'class', 'debt', 'school', 'sub', 'makeup'].includes(it.kind) ? `<span class="chip outline">${KIND_LABEL[it.kind]}</span>` : ''}${it.kind === 'debt' ? '' : prioChip(it.priority)}${it.kind === 'task' && !it.carried ? postponedChip(it.postponedFrom) : ''}${it.sub && it.kind !== 'task' && it.kind !== 'need' ? `<span>${esc(it.sub)}</span>` : ''}</div>
     </div>
     ${it.kind === 'task' && !it.done ? moreBtn(it.id, it.carried && !it.recurring ? it.origDate : it.date) : ''}
     ${it.kind === 'class' && !it.done ? `<button class="icon-btn sm ghost more-btn" data-action="class-more" data-id="${it.id}" data-date="${it.date}" aria-label="More options: suspend or postpone">${icon('more')}</button>` : ''}

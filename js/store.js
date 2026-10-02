@@ -17,6 +17,8 @@ function emptyData() {
     transactions: [],   // {id, type: income|expense|saving, amount, currency, rate (Bs per USD, for VES), category, source, goalId, debtId, date, note}
                         // or {id, type: 'exchange', direction: buy|sell, usd, ves, exRate, method, date, note} (buying/selling dollars)
     goals: [],          // {id, name, target, currency, deadline}
+    assessments: [],    // daily skill practice: {id, date, skill, title, description, group, marks{studentId: participated|not|absent}}
+    evaluations: [],    // {id, date, title, kind, group, notes, absences{studentId: {makeupDate, done, doneAt}}}
     schoolSchedule: [], // Don Bosco timetable: {id, day (1=Mon…5=Fri), start, end, group, subject, from}
     schoolLogs: {},     // "slotId|date" -> {status: given|not_given|absent, substitute, notes}
     substitutions: [],  // classes I covered for someone else: {id, date, start, end, group, teacher, notes}
@@ -103,6 +105,38 @@ function removeClass(id, save = true) {
   Object.keys(logs).forEach((k) => { if (k.startsWith(id + '|')) delete logs[k]; });
   Store.data.classes = Store.data.classes.filter((c) => c.id !== id);
   if (save) Store.save();
+}
+
+/* ---- Don Bosco assessments & evaluations ---- */
+const SKILLS = { reading: 'Reading', writing: 'Writing', listening: 'Listening', speaking: 'Speaking' };
+const PARTICIPATION = { participated: 'Participated', not: 'Didn’t participate', absent: 'Absent' };
+const EVAL_KINDS = ['Written test', 'Quiz', 'Oral test', 'Project', 'Presentation', 'Homework', 'Other'];
+
+const schoolGroups = () => [...new Set(Store.data.students.map(studentGroup))].sort();
+const studentsInGroup = (g) => Store.data.students.filter((s) => studentGroup(s) === g).sort((a, b) => a.name.localeCompare(b.name));
+
+function countMarks(marks) {
+  const c = { participated: 0, not: 0, absent: 0 };
+  Object.values(marks || {}).forEach((m) => { if (c[m] !== undefined) c[m]++; });
+  return c;
+}
+
+/** Everyone who missed an evaluation and hasn't made it up yet. */
+function pendingMakeups() {
+  const out = [];
+  Store.data.evaluations.forEach((ev) => Object.entries(ev.absences || {}).forEach(([sid, a]) => {
+    const s = studentById(sid);
+    if (s && !a.done) out.push({ ev, student: s, makeupDate: a.makeupDate || '' });
+  }));
+  // With a date first (soonest first), then the ones still without a date.
+  return out.sort((x, y) => (x.makeupDate || '9999').localeCompare(y.makeupDate || '9999') || x.ev.date.localeCompare(y.ev.date));
+}
+
+function setMakeup(evalId, studentId, patch) {
+  const ev = Store.get('evaluations', evalId);
+  if (!ev || !ev.absences || !ev.absences[studentId]) return;
+  const absences = { ...ev.absences, [studentId]: { ...ev.absences[studentId], ...patch } };
+  Store.update('evaluations', evalId, { absences });
 }
 
 /* ---- Don Bosco timetable ---- */
@@ -365,6 +399,14 @@ function agendaFor(iso) {
       sub: log.status || iso <= todayISO() ? schoolStatusText(log) : `${fmtTime(s.start)}–${fmtTime(s.end)}`,
     });
   });
+  d.evaluations.forEach((ev) => Object.entries(ev.absences || {}).forEach(([sid, a]) => {
+    const s = studentById(sid);
+    if (!s || a.makeupDate !== iso) return;
+    items.push({
+      kind: 'makeup', id: `${ev.id}~${sid}`, date: iso, title: `Make-up: ${s.name}`, job: 'donbosco', time: null,
+      done: !!a.done, sub: `${ev.title} · ${studentGroup(s)}`,
+    });
+  }));
   d.substitutions.filter((x) => x.date === iso).forEach((x) => items.push({
     kind: 'sub', id: x.id, date: iso, title: `Substitution · ${x.group || 'class'}`, job: 'donbosco', time: x.start, end: x.end,
     done: iso <= todayISO(), sub: x.teacher ? `Covered for ${x.teacher}` : 'Substitution',
@@ -403,6 +445,11 @@ function toggleAgendaItem(kind, id, date) {
     Store.update('meetings', id, { done: !m.done });
   } else if (kind === 'class') {
     updateClassLog(id, date, { done: !classLog(id, date).done });
+  } else if (kind === 'makeup') {
+    const [evalId, sid] = id.split('~');
+    const ev = Store.get('evaluations', evalId);
+    const done = !(ev && ev.absences && ev.absences[sid] && ev.absences[sid].done);
+    setMakeup(evalId, sid, { done, doneAt: done ? Date.now() : null });
   } else if (kind === 'school') {
     setSchoolLog(id, date, { status: schoolLog(id, date).status ? '' : 'given', substitute: '' });
   } else if (kind === 'need') {

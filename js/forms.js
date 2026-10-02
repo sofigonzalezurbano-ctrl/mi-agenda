@@ -175,6 +175,137 @@ function meetingForm(m, defaults = {}) {
   });
 }
 
+/* ---- Don Bosco assessments & evaluations ---- */
+function needGroups() {
+  if (schoolGroups().length) return true;
+  toast('Add your students first (with grade and section)');
+  studentForm();
+  return false;
+}
+
+/** Student list with one choice per student. options: [[value, label]]; marks: {studentId: value}. */
+function markListHTML(group, marks, options, defaultValue, extra = () => '') {
+  const list = studentsInGroup(group);
+  if (!list.length) return '<p class="small muted">No students in this group yet.</p>';
+  return list.map((s) => {
+    const v = marks[s.id] || defaultValue;
+    return `<div class="mark-row" data-sid="${s.id}">
+      <span class="mark-name"><span class="avatar sm">${esc(initials(s.name))}</span>${esc(s.name)}</span>
+      <span class="pills mark-pills">${options.map(([val, l]) => `<label><input type="radio" name="m_${s.id}" value="${val}" ${v === val ? 'checked' : ''}><span class="mk-${val}">${l}</span></label>`).join('')}</span>
+      ${extra(s)}
+    </div>`;
+  }).join('');
+}
+const readMarks = (form) => Object.fromEntries($$('.mark-row', form).map((r) => {
+  const c = $(`input[name="m_${r.dataset.sid}"]:checked`, r);
+  return [r.dataset.sid, c ? c.value : ''];
+}).filter(([, v]) => v));
+
+function assessmentForm(a) {
+  if (!needGroups()) return;
+  const groups = schoolGroups();
+  const values = a || { date: todayISO(), skill: 'reading', group: App.ui.db.lastGroup && groups.includes(App.ui.db.lastGroup) ? App.ui.db.lastGroup : groups[0] };
+  let marks = { ...(a ? a.marks : {}) };
+  const opts = [['participated', '✓ Participated'], ['not', '✗ Didn’t'], ['absent', 'Absent']];
+  openForm({
+    title: a ? 'Edit activity' : 'New activity', wide: true,
+    values,
+    fields: [
+      { name: 'skill', label: 'Skill', type: 'pills', options: Object.entries(SKILLS) },
+      { name: 'title', label: 'What is it about?', required: true, placeholder: 'e.g. Reading comprehension: “My family”' },
+      { name: 'description', label: 'What did we do?', type: 'textarea', placeholder: 'Activity, pages, instructions…' },
+      { name: 'date', label: 'Date', type: 'date', required: true, half: true },
+      { name: 'group', label: 'Grade / section', type: 'select', options: groups, half: true },
+      { name: 'list', type: 'html', cls: 'mark-box', html: `<div class="mark-head"><b>Students</b><button type="button" class="btn btn-light btn-sm" data-all="participated">Everyone participated</button></div><div data-marks></div>` },
+    ],
+    onChange: (v, form) => {
+      const box = $('[data-marks]', form);
+      if (box.dataset.group === v.group) return;
+      if (box.dataset.group) marks = { ...marks, ...readMarks(form) };
+      box.innerHTML = markListHTML(v.group, marks, opts, '');
+      box.dataset.group = v.group;
+    },
+    onSave: (v) => {
+      const form = $('#modal-root form');
+      const rec = { skill: v.skill, title: v.title, description: v.description, date: v.date, group: v.group, marks: readMarks(form) };
+      App.ui.db.lastGroup = v.group;
+      if (a) Store.update('assessments', a.id, rec); else Store.add('assessments', rec);
+      toast(a ? 'Activity updated' : 'Activity saved');
+    },
+    onDelete: a ? () => Store.remove('assessments', a.id) : null,
+  });
+  $('#modal-root [data-all]').addEventListener('click', () => {
+    $$('#modal-root .mark-row input[value="participated"]').forEach((i) => { i.checked = true; });
+  });
+}
+
+function evaluationForm(ev) {
+  if (!needGroups()) return;
+  const groups = schoolGroups();
+  const values = ev || { date: todayISO(), kind: EVAL_KINDS[0], group: App.ui.db.lastGroup && groups.includes(App.ui.db.lastGroup) ? App.ui.db.lastGroup : groups[0] };
+  let absences = { ...(ev ? ev.absences : {}) };
+  const marksFrom = (abs) => Object.fromEntries(Object.keys(abs).map((sid) => [sid, 'absent']));
+  const opts = [['present', 'Present'], ['absent', 'Absent']];
+  const makeupInput = (s) => `<label class="mk-date" data-mk="${s.id}"><span>Make-up date</span><input type="date" value="${esc((absences[s.id] && absences[s.id].makeupDate) || '')}"></label>`;
+  const syncMakeupVisibility = (form) => $$('.mark-row', form).forEach((r) => {
+    const abs = $(`input[name="m_${r.dataset.sid}"][value="absent"]`, r);
+    const box = $('[data-mk]', r);
+    if (box) box.hidden = !(abs && abs.checked);
+  });
+  openForm({
+    title: ev ? 'Edit evaluation' : 'New evaluation', wide: true,
+    values,
+    fields: [
+      { name: 'title', label: 'Evaluation', required: true, placeholder: 'e.g. Unit 2 test — Present simple' },
+      { name: 'kind', label: 'Type', type: 'select', options: EVAL_KINDS, half: true },
+      { name: 'date', label: 'Date', type: 'date', required: true, half: true },
+      { name: 'group', label: 'Grade / section', type: 'select', options: groups },
+      { name: 'notes', label: 'Notes', type: 'textarea', placeholder: 'Topics, value, instructions…' },
+      { name: 'list', type: 'html', cls: 'mark-box', html: '<div class="mark-head"><b>Who missed it?</b><span class="small muted">Everyone is present unless you mark them absent.</span></div><div data-marks></div>' },
+    ],
+    onChange: (v, form) => {
+      const box = $('[data-marks]', form);
+      if (box.dataset.group !== v.group) {
+        box.innerHTML = markListHTML(v.group, marksFrom(absences), opts, 'present', makeupInput);
+        box.dataset.group = v.group;
+      }
+      syncMakeupVisibility(form);
+    },
+    onSave: () => {
+      const form = $('#modal-root form');
+      const v = readForm(form, [{ name: 'title' }, { name: 'kind' }, { name: 'date' }, { name: 'group' }, { name: 'notes' }]);
+      const next = {};
+      $$('.mark-row', form).forEach((r) => {
+        const sid = r.dataset.sid;
+        if (!$(`input[name="m_${sid}"][value="absent"]`, r).checked) return;
+        const prev = absences[sid] || {};
+        next[sid] = { ...prev, makeupDate: $('[data-mk] input', r).value || '', done: !!prev.done };
+      });
+      App.ui.db.lastGroup = v.group;
+      const rec = { title: v.title, kind: v.kind, date: v.date, group: v.group, notes: v.notes, absences: next };
+      if (ev) Store.update('evaluations', ev.id, rec); else Store.add('evaluations', rec);
+      const n = Object.keys(next).length;
+      toast(n ? `Saved · ${n} student${n > 1 ? 's' : ''} owe${n > 1 ? '' : 's'} it` : 'Evaluation saved');
+    },
+    onDelete: ev ? () => Store.remove('evaluations', ev.id) : null,
+  });
+}
+
+function makeupDateForm(evalId, sid) {
+  const ev = Store.get('evaluations', evalId);
+  const s = studentById(sid);
+  if (!ev || !s) return;
+  openForm({
+    title: 'Make-up date',
+    values: { makeupDate: (ev.absences[sid] || {}).makeupDate || '' },
+    fields: [
+      { name: 'info', type: 'html', cls: 'j-donbosco', html: `<b>${esc(s.name)}</b> · ${esc(studentGroup(s))}<br><span class="muted">${esc(ev.title)} — missed on ${fmtDate(ev.date)}</span>` },
+      { name: 'makeupDate', label: 'When will they make it up?', type: 'date' },
+    ],
+    onSave: (v) => { setMakeup(evalId, sid, { makeupDate: v.makeupDate }); toast(v.makeupDate ? `Make-up on ${fmtDate(v.makeupDate)}` : 'Date removed'); },
+  });
+}
+
 /* ---- Don Bosco timetable ---- */
 const SCHOOL_DAYS = [[1, 'Monday'], [2, 'Tuesday'], [3, 'Wednesday'], [4, 'Thursday'], [5, 'Friday']];
 const fmtRange = (a, b) => `${fmtTime(a)}${b ? '–' + fmtTime(b) : ''}`;

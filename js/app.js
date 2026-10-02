@@ -17,7 +17,7 @@ const App = {
   lastDay: todayISO(),
   ui: {
     cal: { mode: 'month', cursor: todayISO() },
-    db: { tab: 'schedule', group: 'all', q: '', incStatus: 'open', incType: 'all', week: startOfWeek(todayISO()) },
+    db: { tab: 'schedule', group: 'all', q: '', incStatus: 'open', incType: 'all', week: startOfWeek(todayISO()), asSkill: 'all', asGroup: 'all', evGroup: 'all', lastGroup: '' },
     fe: { rest: 'all' },
     on: { tab: 'schedule', week: startOfWeek(todayISO()) },
     fin: { month: monthKey(todayISO()), type: 'all' },
@@ -110,6 +110,7 @@ const ACTIONS = {
     else if (kind === 'debt') debtForm(Store.get('debts', id));
     else if (kind === 'school') schoolLogForm(id, date);
     else if (kind === 'sub') substitutionForm(Store.get('substitutions', id));
+    else if (kind === 'makeup') evaluationForm(Store.get('evaluations', id.split('~')[0]));
   },
   /* quick-add shortcuts */
   'qa-task-donbosco': (el) => taskForm(null, { jobs: ['donbosco'], date: ds(el).date }),
@@ -137,6 +138,13 @@ const ACTIONS = {
     setSchoolLog(id, date, { status: same ? '' : status, substitute: '' });
   },
   'edit-schedule': () => scheduleEditor(),
+  'new-assessment': () => assessmentForm(),
+  'edit-assessment': (el) => assessmentForm(Store.get('assessments', ds(el).id)),
+  'as-skill': (el) => { App.ui.db.asSkill = ds(el).skill; },
+  'new-evaluation': () => evaluationForm(),
+  'edit-evaluation': (el) => evaluationForm(Store.get('evaluations', ds(el).id)),
+  'makeup-date': (el) => makeupDateForm(ds(el).id, ds(el).student),
+  'makeup-done': (el) => { setMakeup(ds(el).id, ds(el).student, { done: true, doneAt: Date.now() }); toast('Evaluation made up ✓'); },
   'new-slot': () => slotForm(),
   'edit-slot': (el) => slotForm(Store.get('schoolSchedule', ds(el).id)),
   'new-sub': (el) => substitutionForm(null, ds(el).date ? { date: ds(el).date } : {}),
@@ -221,6 +229,8 @@ document.addEventListener('change', (e) => {
   if (!k) return;
   if (k === 'db-group') App.ui.db.group = e.target.value;
   if (k === 'db-inc-type') App.ui.db.incType = e.target.value;
+  if (k === 'as-group') App.ui.db.asGroup = e.target.value;
+  if (k === 'ev-group') App.ui.db.evGroup = e.target.value;
   App.render();
 });
 document.addEventListener('input', (e) => {
