@@ -53,10 +53,17 @@ const ACTIONS = {
   'quick-add': (el) => quickAdd(ds(el).date || (App.route === 'calendar' ? App.ui.cal.cursor : todayISO())),
   settings: () => settingsSheet(),
   export: () => exportBackup(),
+  'trash-restore': (el) => {
+    const label = TRASH_LABELS[ds(el).coll] || ds(el).coll;
+    if (!confirm(`Restore deleted ${label}?`)) return;
+    const n = trashRestore(ds(el).coll);
+    closeModal(); App.render(); toast(`${n} restored`);
+  },
   reset: () => {
     const cloud = CloudSync.uid ? ' It will also be erased from your other synced devices.' : '';
     if (!confirm(`Erase ALL your data?${cloud} This cannot be undone. (Export a backup first!)`)) return;
     if (!confirm('Are you completely sure?')) return;
+    CloudSync.allowBulkDelete = true;
     Store.data = emptyData(); Store.save(); closeModal(); App.render(); toast('All data erased');
   },
 

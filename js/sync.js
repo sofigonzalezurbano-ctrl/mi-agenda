@@ -49,7 +49,40 @@ function flattenData(data) {
   const s = { ...data.settings };
   DEVICE_ONLY_SETTINGS.forEach((k) => delete s[k]);
   out.settings__main = stableJSON(s);
+  // Records this version doesn't know (added by a newer version): kept as they are, never dropped.
+  Object.entries(data._extra || {}).forEach(([k, json]) => { out[k] = json; });
   return out;
+}
+
+const KNOWN_PREFIXES = () => [...SYNC_COLLS, 'classLogs', 'schoolLogs', 'rates', 'settings'];
+const isKnownKey = (key) => KNOWN_PREFIXES().includes(key.slice(0, key.indexOf('__')));
+
+/* ---- Local safety net: everything removed by sync is kept here for 30 days ---- */
+const TRASH_KEY = 'miAgenda.trash';
+function trashPut(entries) {
+  if (!entries.length) return;
+  try {
+    const trash = JSON.parse(localStorage.getItem(TRASH_KEY) || '{}');
+    const now = Date.now();
+    entries.forEach(({ key, json }) => { if (json) trash[key] = { json, at: now }; });
+    Object.keys(trash).forEach((k) => { if (now - trash[k].at > 30 * 86400000) delete trash[k]; });
+    localStorage.setItem(TRASH_KEY, JSON.stringify(trash));
+  } catch (e) { /* storage full or unavailable */ }
+}
+function trashList() {
+  try { return Object.entries(JSON.parse(localStorage.getItem(TRASH_KEY) || '{}')).map(([key, v]) => ({ key, ...v })); } catch (e) { return []; }
+}
+/** Puts deleted records back (they sync again to the other devices). */
+function trashRestore(prefix) {
+  const items = trashList().filter((x) => !prefix || x.key.startsWith(prefix + '__'));
+  items.forEach(({ key, json }) => applyDoc(Store.data, key, json));
+  try {
+    const trash = JSON.parse(localStorage.getItem(TRASH_KEY) || '{}');
+    items.forEach(({ key }) => delete trash[key]);
+    localStorage.setItem(TRASH_KEY, JSON.stringify(trash));
+  } catch (e) { /* ignore */ }
+  Store.save();
+  return items.length;
 }
 
 /** Applies one document (or its deletion when json is null) to Store.data. */
@@ -65,8 +98,11 @@ function applyDoc(data, key, json) {
     else arr.push(val);
   } else if (coll === 'classLogs' || coll === 'schoolLogs' || coll === 'rates') {
     if (val === null) delete data[coll][id]; else data[coll][id] = val;
-  } else if (coll === 'settings' && val) {
-    Object.assign(data.settings, val);
+  } else if (coll === 'settings') {
+    if (val) Object.assign(data.settings, val);
+  } else {
+    data._extra = data._extra || {};
+    if (json == null) delete data._extra[key]; else data._extra[key] = json;
   }
 }
 
@@ -136,8 +172,22 @@ const CloudSync = {
       else if (l === null) keepLocal = hs !== null && hr === hs;       // gone locally: deleted here unless edited there
       else keepLocal = hr === hs;                                      // both exist: whoever changed it since last sync wins
       if (keepLocal) { writes.push({ key: k, json: l }); if (hl) next[k] = hl; }
-      else { applyDoc(data, k, r); localChanged = true; if (hr) next[k] = hr; }
+      else {
+        if (r === null && l) trashPut([{ key: k, json: l }]);
+        applyDoc(data, k, r); localChanged = true; if (hr) next[k] = hr;
+      }
     });
+    // Safety brake: if this device would delete many records from the cloud at once, it is far more
+    // likely out of date than right — bring them back here instead.
+    const dels = writes.filter((w) => w.json === null);
+    if (dels.length > 15 && !this.allowBulkDelete) {
+      dels.forEach((w) => {
+        applyDoc(data, w.key, remote[w.key]);
+        next[w.key] = hashStr(remote[w.key]);
+        writes.splice(writes.indexOf(w), 1);
+      });
+      localChanged = true;
+    }
     this.synced = next;
     this.saveState();
     this.ready = true;
@@ -147,6 +197,8 @@ const CloudSync = {
 
   applyRemote(changes) {
     let changed = false;
+    const before = flattenData(Store.data);
+    trashPut(changes.filter((c) => c.json == null && before[c.key]).map((c) => ({ key: c.key, json: before[c.key] })));
     changes.forEach(({ key, json }) => {
       const h = hashOrNull(json);
       if (h === (this.synced[key] ?? null)) return; // already have it (often our own write echoing back)
@@ -176,9 +228,15 @@ const CloudSync = {
       const h = hashStr(json);
       if (this.synced[k] !== h) { writes.push({ key: k, json }); this.synced[k] = h; }
     });
-    Object.keys(this.synced).forEach((k) => {
-      if (!(k in L)) { writes.push({ key: k, json: null }); delete this.synced[k]; }
-    });
+    const deletions = Object.keys(this.synced).filter((k) => !(k in L) && isKnownKey(k));
+    // Safety brake: a normal edit never deletes many records at once. Only "Erase everything"
+    // or "Import backup" may (they set allowBulkDelete).
+    if (deletions.length > 15 && !this.allowBulkDelete) {
+      console.warn('Sync: refused to delete', deletions.length, 'records at once');
+      deletions.length = 0;
+    }
+    this.allowBulkDelete = false;
+    deletions.forEach((k) => { writes.push({ key: k, json: null }); delete this.synced[k]; });
     if (!writes.length) return;
     this.saveState();
     this.write(writes);

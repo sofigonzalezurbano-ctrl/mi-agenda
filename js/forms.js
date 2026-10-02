@@ -930,6 +930,7 @@ function settingsSheet() {
       <label class="field"><span>Your name</span><input name="name" value="${esc(st.name)}"></label>
       <div class="form-actions"><span class="spacer"></span><button class="btn btn-dark" type="submit">Save name</button></div>
     </form>
+    ${trashSectionHTML()}
     <div class="group-title" style="margin-top:22px">Backup</div>
     <p class="small muted" style="margin:0 0 12px">Your data (${counts} records) is saved on this device${CloudSync.uid ? ' and synced to your account' : ''}. Export a backup now and then as an extra copy.</p>
     <div class="chips">
@@ -944,6 +945,22 @@ function settingsSheet() {
     closeModal(); App.render(); toast('Saved');
   });
   $('#import-file').addEventListener('change', (e) => importBackup(e.target.files[0]));
+}
+
+const TRASH_LABELS = {
+  assessments: 'Assessments', evaluations: 'Evaluations', tasks: 'Tasks', students: 'Students', incidents: 'Incidents',
+  meetings: 'Meetings', onlineStudents: 'Online students', classes: 'Online classes', classLogs: 'Class notes',
+  schoolLogs: 'Timetable marks', substitutions: 'Substitutions', needs: 'Things I need', transactions: 'Money movements',
+  goals: 'Savings goals', debts: 'Debts', schoolSchedule: 'Timetable blocks',
+};
+function trashSectionHTML() {
+  const items = trashList();
+  if (!items.length) return '';
+  const by = {};
+  items.forEach((x) => { const c = x.key.slice(0, x.key.indexOf('__')); by[c] = (by[c] || 0) + 1; });
+  return `<div class="group-title" style="margin-top:22px">Recently deleted (last 30 days)</div>
+    <p class="small muted" style="margin:0 0 10px">Records removed from this device by syncing. Restoring them brings them back on all your devices.</p>
+    <div class="chips">${Object.entries(by).map(([c, n]) => `<button class="btn btn-light btn-sm" data-action="trash-restore" data-coll="${c}">${icon('refresh')}${esc(TRASH_LABELS[c] || c)} (${n})</button>`).join('')}</div>`;
 }
 
 function exportBackup() {
@@ -964,6 +981,7 @@ function importBackup(file) {
       const obj = JSON.parse(reader.result);
       if (!obj || typeof obj !== 'object' || !Array.isArray(obj.tasks)) throw new Error('bad file');
       if (!confirm('Replace all current data with this backup?')) return;
+      CloudSync.allowBulkDelete = true;
       Store.data = Store.normalize(obj);
       Store.save();
       closeModal(); App.render(); toast('Backup imported');
