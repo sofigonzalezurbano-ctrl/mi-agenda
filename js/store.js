@@ -139,6 +139,69 @@ function setMakeup(evalId, studentId, patch) {
   Store.update('evaluations', evalId, { absences });
 }
 
+/* ---- Don Bosco class lists 2026–2027 (2° A and 2° B), loaded once ---- */
+const DEFAULT_STUDENTS = {
+  A: [
+    'Carlos Bruzual',
+    'Isabella Capechi',
+    'Manuel Castro',
+    'Rodrigo Farfan',
+    'Luciana Gomez',
+    'Zoe Martinez',
+    'Maria Medina',
+    'Isabella Medina',
+    'Lisandro Medori',
+    'Abril Millan',
+    'Victoria Mogollon',
+    'Dhana Mucciarelli',
+    'Marcela Oraa',
+    'Federica Ortega',
+    'Jose Padron',
+    'Yovanni Rangel',
+    'Alhana Rodriguez',
+    'Guillermo Tamiche',
+    'Santiago Urbina',
+    'Natalia Velasquez',
+    'Isabella Hernández',
+  ],
+  B: [
+    'Maria Balcero',
+    'Isabella Bracho',
+    'Guillermo Caraballo',
+    'Nicole Chen',
+    'Maria Crucet',
+    'Manuel Duerto',
+    'Renato Figueredo',
+    'Claudio Gonzalez',
+    'María Guaiquirian',
+    'Ainhoa Jeanton',
+    'Victoria Jimenez',
+    'Victoria La Rosa',
+    'José Ledezma',
+    'Andrea Morillo',
+    'Nelson Ramos',
+    'Gerardo Roa',
+    'Andres Santos',
+    'Martina Vorraso',
+    'Valentina Romero',
+  ],
+};
+const normName = (n) => String(n).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+
+/** Adds the class lists. Existing students with the same name are kept (only their grade/section is corrected). */
+function seedStudents() {
+  const d = Store.data;
+  if (d.settings.studentsSeeded) return;
+  Object.entries(DEFAULT_STUDENTS).forEach(([section, names]) => names.forEach((name, i) => {
+    const existing = d.students.find((s) => normName(s.name) === normName(name));
+    if (existing) { existing.grade = '2°'; existing.section = section; return; }
+    // Fixed ids so two devices loading the list at the same time don't create duplicates.
+    d.students.push({ id: `stu-2${section.toLowerCase()}-${String(i + 1).padStart(2, '0')}`, name, grade: '2°', section, createdAt: Date.now() });
+  }));
+  d.settings.studentsSeeded = true;
+  Store.save();
+}
+
 /* ---- Don Bosco timetable ---- */
 const SCHOOL_STATUS = { given: 'Given', not_given: 'Not given', absent: 'I was absent' };
 

@@ -286,6 +286,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) { ch
 $$('[data-icon]').forEach((el) => { el.outerHTML = icon(el.dataset.icon); });
 Store.load();
 seedSchoolSchedule();
+seedStudents();
 window.addEventListener('hashchange', () => App.onRoute());
 App.onRoute();
 CloudSync.setStatus(CloudSync.status);
