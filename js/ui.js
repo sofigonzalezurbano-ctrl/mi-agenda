@@ -68,6 +68,12 @@ function fieldHTML(f, v) {
         .map((i) => `<label><input type="checkbox" name="${f.name}" value="${i}" ${sel.includes(i) ? 'checked' : ''}><span>${WEEKDAYS[i]}</span></label>`).join('')}</div>`;
       break;
     }
+    case 'multi': {
+      const sel = v || [];
+      input = `<div class="pills">${normOpts(f.options)
+        .map(([val, l]) => `<label><input type="checkbox" name="${f.name}" value="${esc(val)}" ${sel.includes(val) ? 'checked' : ''}><span>${esc(l)}</span></label>`).join('')}</div>`;
+      break;
+    }
     case 'number':
       input = `<input type="number" name="${f.name}" value="${v ?? ''}" step="${f.step || 'any'}" min="0" inputmode="decimal" ${ph}>`;
       break;
@@ -75,7 +81,7 @@ function fieldHTML(f, v) {
       input = `<input type="${f.type || 'text'}" name="${f.name}" value="${esc(v ?? '')}" ${ph} autocomplete="off"${f.suggestions ? ` list="dl-${f.name}"` : ''}>`
         + (f.suggestions ? `<datalist id="dl-${f.name}">${f.suggestions.map((o) => `<option value="${esc(o)}">`).join('')}</datalist>` : '');
   }
-  const tag = f.type === 'pills' || f.type === 'days' ? 'div' : 'label';
+  const tag = ['pills', 'days', 'multi'].includes(f.type) ? 'div' : 'label';
   return `<${tag} class="${cls}" data-field="${f.name}"><span>${esc(f.label)}${f.required ? ' *' : ''}</span>${input}</${tag}>`;
 }
 
@@ -85,6 +91,7 @@ function readForm(form, fields) {
     if (f.type === 'html') return;
     if (f.type === 'checkbox') vals[f.name] = form.elements[f.name].checked;
     else if (f.type === 'days') vals[f.name] = $$(`input[name="${f.name}"]:checked`, form).map((i) => Number(i.value));
+    else if (f.type === 'multi') vals[f.name] = $$(`input[name="${f.name}"]:checked`, form).map((i) => i.value);
     else if (f.type === 'pills') { const c = $(`input[name="${f.name}"]:checked`, form); vals[f.name] = c ? c.value : ''; }
     else if (f.type === 'number') { const s = form.elements[f.name].value.trim(); vals[f.name] = s === '' ? null : Number(s); }
     else vals[f.name] = form.elements[f.name].value.trim();

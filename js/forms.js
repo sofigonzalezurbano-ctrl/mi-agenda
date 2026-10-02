@@ -201,12 +201,22 @@ const readMarks = (form) => Object.fromEntries($$('.mark-row', form).map((r) => 
   return [r.dataset.sid, c ? c.value : ''];
 }).filter(([, v]) => v));
 
+/** One block per selected group: title (+ optional button) and that group's student list. */
+const markGroupsHTML = (groups, body, button = () => '') => groups.map((g) =>
+  `<div class="mark-group"><div class="mark-group-title"><b>${esc(g)}</b><span class="small muted">${studentsInGroup(g).length} students</span>${button(g)}</div>${body(g)}</div>`).join('');
+const groupField = (editing, groups) => (editing
+  ? { name: 'group', label: 'Grade / section', type: 'select', options: groups }
+  : { name: 'groups', label: 'Grade / section — pick one or both', type: 'multi', options: groups });
+const defaultGroups = (groups) => [App.ui.db.lastGroup && groups.includes(App.ui.db.lastGroup) ? App.ui.db.lastGroup : groups[0]];
+const joinGroups = (list) => list.join(' and ');
+
 function assessmentForm(a) {
   if (!needGroups()) return;
   const groups = schoolGroups();
-  const values = a || { date: todayISO(), skill: 'reading', group: App.ui.db.lastGroup && groups.includes(App.ui.db.lastGroup) ? App.ui.db.lastGroup : groups[0] };
+  const values = a ? { ...a } : { date: todayISO(), skill: 'reading', groups: defaultGroups(groups) };
   let marks = { ...(a ? a.marks : {}) };
   const opts = [['participated', '✓ Participated'], ['not', '✗ Didn’t'], ['absent', 'Absent']];
+  const selected = (v) => (a ? [v.group] : v.groups);
   openForm({
     title: a ? 'Edit activity' : 'New activity', wide: true,
     values,
@@ -214,39 +224,63 @@ function assessmentForm(a) {
       { name: 'skill', label: 'Skill', type: 'pills', options: Object.entries(SKILLS) },
       { name: 'title', label: 'What is it about?', required: true, placeholder: 'e.g. Reading comprehension: “My family”' },
       { name: 'description', label: 'What did we do?', type: 'textarea', placeholder: 'Activity, pages, instructions…' },
-      { name: 'date', label: 'Date', type: 'date', required: true, half: true },
-      { name: 'group', label: 'Grade / section', type: 'select', options: groups, half: true },
-      { name: 'list', type: 'html', cls: 'mark-box', html: `<div class="mark-head"><b>Students</b><button type="button" class="btn btn-light btn-sm" data-all="participated">Everyone participated</button></div><div data-marks></div>` },
+      { name: 'date', label: 'Date', type: 'date', required: true },
+      groupField(!!a, groups),
+      { name: 'list', type: 'html', cls: 'mark-box', html: '<div data-marks></div>' },
     ],
     onChange: (v, form) => {
       const box = $('[data-marks]', form);
-      if (box.dataset.group === v.group) return;
-      if (box.dataset.group) marks = { ...marks, ...readMarks(form) };
-      box.innerHTML = markListHTML(v.group, marks, opts, '');
-      box.dataset.group = v.group;
+      const key = selected(v).join('|');
+      if (box.dataset.key === key) return;
+      if (box.dataset.key !== undefined) marks = { ...marks, ...readMarks(form) };
+      box.innerHTML = selected(v).length
+        ? markGroupsHTML(selected(v), (g) => markListHTML(g, marks, opts, ''),
+          (g) => `<button type="button" class="btn btn-light btn-sm" data-all-group="${esc(g)}">Everyone participated</button>`)
+        : '<p class="small muted">Pick at least one grade / section.</p>';
+      box.dataset.key = key;
     },
     onSave: (v) => {
-      const form = $('#modal-root form');
-      const rec = { skill: v.skill, title: v.title, description: v.description, date: v.date, group: v.group, marks: readMarks(form) };
-      App.ui.db.lastGroup = v.group;
-      if (a) Store.update('assessments', a.id, rec); else Store.add('assessments', rec);
-      toast(a ? 'Activity updated' : 'Activity saved');
+      const sel = selected(v);
+      if (!sel.length) { toast('Pick at least one grade / section'); return false; }
+      const all = readMarks($('#modal-root form'));
+      const base = { skill: v.skill, title: v.title, description: v.description, date: v.date };
+      // One record per group, so each class keeps its own list.
+      sel.forEach((g) => {
+        const ids = new Set(studentsInGroup(g).map((s) => s.id));
+        const rec = { ...base, group: g, marks: Object.fromEntries(Object.entries(all).filter(([sid]) => ids.has(sid))) };
+        if (a) Store.update('assessments', a.id, rec); else Store.add('assessments', rec);
+      });
+      App.ui.db.lastGroup = sel[0];
+      toast(a ? 'Activity updated' : `Activity saved for ${joinGroups(sel)}`);
     },
     onDelete: a ? () => Store.remove('assessments', a.id) : null,
   });
-  $('#modal-root [data-all]').addEventListener('click', () => {
-    $$('#modal-root .mark-row input[value="participated"]').forEach((i) => { i.checked = true; });
+  $('#modal-root [data-marks]').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-all-group]');
+    if (!b) return;
+    $$('input[value="participated"]', b.closest('.mark-group')).forEach((i) => { i.checked = true; });
   });
 }
 
 function evaluationForm(ev) {
   if (!needGroups()) return;
   const groups = schoolGroups();
-  const values = ev || { date: todayISO(), kind: EVAL_KINDS[0], group: App.ui.db.lastGroup && groups.includes(App.ui.db.lastGroup) ? App.ui.db.lastGroup : groups[0] };
+  const values = ev ? { ...ev } : { date: todayISO(), kind: EVAL_KINDS[0], groups: defaultGroups(groups) };
   let absences = { ...(ev ? ev.absences : {}) };
-  const marksFrom = (abs) => Object.fromEntries(Object.keys(abs).map((sid) => [sid, 'absent']));
   const opts = [['present', 'Present'], ['absent', 'Absent']];
+  const selected = (v) => (ev ? [v.group] : v.groups);
   const makeupInput = (s) => `<label class="mk-date" data-mk="${s.id}"><span>Make-up date</span><input type="date" value="${esc((absences[s.id] && absences[s.id].makeupDate) || '')}"></label>`;
+  /** Absent students currently marked in the form, with their make-up dates. */
+  const readAbsences = (form) => {
+    const out = {};
+    $$('.mark-row', form).forEach((r) => {
+      const sid = r.dataset.sid;
+      if (!$(`input[name="m_${sid}"][value="absent"]`, r).checked) return;
+      const prev = absences[sid] || {};
+      out[sid] = { ...prev, makeupDate: $('[data-mk] input', r).value || '', done: !!prev.done };
+    });
+    return out;
+  };
   const syncMakeupVisibility = (form) => $$('.mark-row', form).forEach((r) => {
     const abs = $(`input[name="m_${r.dataset.sid}"][value="absent"]`, r);
     const box = $('[data-mk]', r);
@@ -259,33 +293,42 @@ function evaluationForm(ev) {
       { name: 'title', label: 'Evaluation', required: true, placeholder: 'e.g. Unit 2 test — Present simple' },
       { name: 'kind', label: 'Type', type: 'select', options: EVAL_KINDS, half: true },
       { name: 'date', label: 'Date', type: 'date', required: true, half: true },
-      { name: 'group', label: 'Grade / section', type: 'select', options: groups },
+      groupField(!!ev, groups),
       { name: 'notes', label: 'Notes', type: 'textarea', placeholder: 'Topics, value, instructions…' },
       { name: 'list', type: 'html', cls: 'mark-box', html: '<div class="mark-head"><b>Who missed it?</b><span class="small muted">Everyone is present unless you mark them absent.</span></div><div data-marks></div>' },
     ],
     onChange: (v, form) => {
       const box = $('[data-marks]', form);
-      if (box.dataset.group !== v.group) {
-        box.innerHTML = markListHTML(v.group, marksFrom(absences), opts, 'present', makeupInput);
-        box.dataset.group = v.group;
+      const key = selected(v).join('|');
+      if (box.dataset.key !== key) {
+        if (box.dataset.key !== undefined) {
+          // Keep what was marked in groups that stay selected.
+          const shown = new Set($$('.mark-row', form).map((r) => r.dataset.sid));
+          absences = { ...Object.fromEntries(Object.entries(absences).filter(([sid]) => !shown.has(sid))), ...readAbsences(form) };
+        }
+        const marks = Object.fromEntries(Object.keys(absences).map((sid) => [sid, 'absent']));
+        box.innerHTML = selected(v).length
+          ? markGroupsHTML(selected(v), (g) => markListHTML(g, marks, opts, 'present', makeupInput))
+          : '<p class="small muted">Pick at least one grade / section.</p>';
+        box.dataset.key = key;
       }
       syncMakeupVisibility(form);
     },
-    onSave: () => {
-      const form = $('#modal-root form');
-      const v = readForm(form, [{ name: 'title' }, { name: 'kind' }, { name: 'date' }, { name: 'group' }, { name: 'notes' }]);
-      const next = {};
-      $$('.mark-row', form).forEach((r) => {
-        const sid = r.dataset.sid;
-        if (!$(`input[name="m_${sid}"][value="absent"]`, r).checked) return;
-        const prev = absences[sid] || {};
-        next[sid] = { ...prev, makeupDate: $('[data-mk] input', r).value || '', done: !!prev.done };
+    onSave: (v) => {
+      const sel = selected(v);
+      if (!sel.length) { toast('Pick at least one grade / section'); return false; }
+      const all = readAbsences($('#modal-root form'));
+      const base = { title: v.title, kind: v.kind, date: v.date, notes: v.notes };
+      let n = 0;
+      sel.forEach((g) => {
+        const ids = new Set(studentsInGroup(g).map((s) => s.id));
+        const abs = Object.fromEntries(Object.entries(all).filter(([sid]) => ids.has(sid)));
+        n += Object.keys(abs).length;
+        const rec = { ...base, group: g, absences: abs };
+        if (ev) Store.update('evaluations', ev.id, rec); else Store.add('evaluations', rec);
       });
-      App.ui.db.lastGroup = v.group;
-      const rec = { title: v.title, kind: v.kind, date: v.date, group: v.group, notes: v.notes, absences: next };
-      if (ev) Store.update('evaluations', ev.id, rec); else Store.add('evaluations', rec);
-      const n = Object.keys(next).length;
-      toast(n ? `Saved · ${n} student${n > 1 ? 's' : ''} owe${n > 1 ? '' : 's'} it` : 'Evaluation saved');
+      App.ui.db.lastGroup = sel[0];
+      toast(`${ev ? 'Evaluation updated' : `Evaluation saved for ${joinGroups(sel)}`}${n ? ` · ${n} owe${n > 1 ? '' : 's'} it` : ''}`);
     },
     onDelete: ev ? () => Store.remove('evaluations', ev.id) : null,
   });

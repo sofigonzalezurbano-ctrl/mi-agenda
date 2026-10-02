@@ -459,6 +459,10 @@ details[open].done-list summary::after { content: "–"; }
 /* Assessments & evaluations */
 .mark-box { padding: 14px; }
 .mark-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.mark-group + .mark-group { margin-top: 18px; }
+.mark-group-title { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 12px; margin-bottom: 4px; background: #bde9e1; border-radius: 12px; }
+.mark-group-title b { font-size: 15px; }
+.mark-group-title .btn { margin-left: auto; }
 .mark-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 0; border-top: 1px solid var(--line); }
 .mark-name { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 14px; flex: 1; min-width: 140px; }
 .avatar.sm { width: 30px; height: 30px; font-size: 11px; background: #bde9e1; }
