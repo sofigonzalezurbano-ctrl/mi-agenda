@@ -418,6 +418,33 @@ function classLogForm(classId, date) {
   });
 }
 
+/** Suspend / postpone options for one online class. */
+function classMoreSheet(classId, date) {
+  const c = Store.get('classes', classId);
+  if (!c) return;
+  const log = classLog(classId, date);
+  const time = classTimeOn(c, date);
+  const base = date > todayISO() ? date : todayISO();
+  const opts = [['Tomorrow', addDays(base, 1)], ['Same day next week', addDays(date, 7)]];
+  openSheet(classTitle(c), `
+    <p class="small muted" style="margin:-6px 0 14px">${fmtLongDate(date)}${time ? ' · ' + fmtTime(time) : ''}${classSkipped(log) ? ' · <b>' + esc(classStatusText(log)) + '</b>' : ''}</p>
+    <div class="group-title">Postpone to</div>
+    <div class="chips">${opts.map(([l, d]) => `<button class="chip-btn" data-action="class-postpone" data-id="${classId}" data-date="${date}" data-to="${d}">${l} <span class="muted small">${fmtDate(d, { weekday: 'short', day: 'numeric' })}</span></button>`).join('')}
+      <button class="chip-btn" data-action="class-postpone" data-id="${classId}" data-date="${date}" data-to="">No date yet</button></div>
+    <div class="postpone-pick">
+      <label class="field" style="flex:1"><span>Or pick a date</span><input type="date" id="class-pp-date" min="${todayISO()}"></label>
+      <label class="field" style="flex:1"><span>Time</span><input type="time" id="class-pp-time" value="${esc(time)}"></label>
+      <button class="btn btn-dark btn-sm" data-action="class-postpone" data-id="${classId}" data-date="${date}" data-to="pick">Postpone</button>
+    </div>
+    <div class="group-title">More</div>
+    <div class="chips">
+      ${classSkipped(log)
+        ? `<button class="btn btn-light btn-sm" data-action="class-restore" data-id="${classId}" data-date="${date}">Restore class</button>`
+        : `<button class="btn btn-light btn-sm danger" data-action="class-suspend" data-id="${classId}" data-date="${date}">${icon('x')}Suspend this class</button>`}
+      <button class="btn btn-ghost btn-sm" data-action="open-item" data-kind="class" data-id="${classId}" data-date="${date}">${icon('note')}Class notes</button>
+    </div>`);
+}
+
 function onlineStudentDetail(id) {
   const s = onlineStudentById(id);
   if (!s) return;

@@ -68,6 +68,21 @@ const ACTIONS = {
   },
   'edit-task': (el) => taskForm(Store.get('tasks', ds(el).id)),
   'task-more': (el) => taskMoreSheet(ds(el).id, ds(el).date),
+  'class-more': (el) => classMoreSheet(ds(el).id, ds(el).date),
+  'class-postpone': (el) => {
+    let { id, date, to } = ds(el);
+    let time = '';
+    if (to === 'pick') {
+      to = $('#class-pp-date').value;
+      time = $('#class-pp-time').value;
+      if (!to) { toast('Pick a date first'); return; }
+    }
+    postponeClass(id, date, to, time);
+    closeModal();
+    toast(to ? `Class moved to ${fmtDate(to)}` : 'Postponed — set the date later in Online Classes');
+  },
+  'class-suspend': (el) => { suspendClass(ds(el).id, ds(el).date); closeModal(); toast('Class suspended'); },
+  'class-restore': (el) => { restoreClass(ds(el).id, ds(el).date); closeModal(); toast('Class restored'); },
   'task-postpone': (el) => {
     let { id, date, to } = ds(el);
     if (to === 'pick') {

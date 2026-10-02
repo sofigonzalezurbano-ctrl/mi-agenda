@@ -18,7 +18,7 @@ Doble clic en `index.html` (se abre en el navegador). No necesita internet, salv
 | **Calendar** | Vistas Día / Semana / Mes con todo lo que tiene fecha, coloreado por trabajo |
 | **Don Bosco** | Horario semanal de clases (marcar dada / falté con quién me suplió / no hubo clase) y suplencias que hice; tareas con prioridad (y tareas fijas que se repiten los días que elijas), estudiantes por grado/sección, incidencias (tipo, gravedad, notificado, resuelto), reuniones con representantes |
 | **4 Eleven Media** | Tareas (únicas o fijas) por restaurante: Movita Juice Bar, Alas Kitchen, La Casita Mexicana, o "All 3 restaurants" para tareas de los tres |
-| **Online Classes** | Estudiantes y horario semanal: días y horas (puede ser una hora distinta por día), notas por clase |
+| **Online Classes** | Estudiantes y horario semanal: días y horas (puede ser una hora distinta por día), notas por clase, suspender o posponer una clase (con clase de reposición o "por reprogramar") |
 | **Things I need** | Lista de cosas que necesito con prioridad y costo estimado, y tareas personales |
 | **Finances** | Tasa oficial BCV automática (+ convertidor), billeteras separadas en Bs y USD, total del mes en dólares (cada movimiento en Bs se convierte a la tasa de su día), ingresos por trabajo, gastos por categoría, metas de ahorro, deudas (pago único, cada 2 semanas o mensual, con fechas en el calendario), compra/venta de dólares (Binance, efectivo, Zelle…) |
 

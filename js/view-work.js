@@ -283,6 +283,33 @@ function viewOnline() {
   ${content}`;
 }
 
+function skippedClassRow(o) {
+  const t = classTimeOn(o.cls, o.date);
+  return `<div class="row j-online done">
+    <span class="time">${t ? fmtTime(t) : ''}</span>
+    <div class="row-main" data-action="class-more" data-id="${o.cls.id}" data-date="${o.date}">
+      <div class="row-title">${esc(classTitle(o.cls))}</div>
+      <div class="row-meta"><span class="chip ${o.log.status === 'suspended' ? 'dark' : 'outline'}">${esc(classStatusText(o.log))}</span></div>
+    </div>
+    <button class="icon-btn sm ghost more-btn" data-action="class-more" data-id="${o.cls.id}" data-date="${o.date}" aria-label="Change">${icon('more')}</button>
+  </div>`;
+}
+
+function toRescheduleCard() {
+  const list = classesToReschedule();
+  if (!list.length) return '';
+  return `<section class="card c-soft j-online" style="margin-bottom:16px">
+    <div class="card-head"><h2>To reschedule</h2><span class="small muted">${list.length} class${list.length > 1 ? 'es' : ''} postponed without a date</span></div>
+    <div class="list">${list.map(({ cls, date }) => `<div class="row j-online">
+      <div class="row-main" data-action="class-more" data-id="${cls.id}" data-date="${date}">
+        <div class="row-title">${esc(classTitle(cls))}</div>
+        <div class="row-meta"><span>Was on ${fmtDate(date)}</span></div>
+      </div>
+      <button class="btn btn-dark btn-sm" data-action="class-more" data-id="${cls.id}" data-date="${date}">Set new date</button>
+    </div>`).join('')}</div>
+  </section>`;
+}
+
 function onlineSchedule() {
   const ws = App.ui.on.week;
   const we = addDays(ws, 6);
@@ -290,14 +317,15 @@ function onlineSchedule() {
   const plans = [...Store.data.classes].sort((a, b) => (a.time || '').localeCompare(b.time || ''));
   let days = '';
   for (let d = ws; d <= we; d = addDays(d, 1)) {
-    const items = occ.filter((o) => o.date === d).map((o) => ({
+    const dayOcc = occ.filter((o) => o.date === d);
+    if (!dayOcc.length) continue;
+    const rows = dayOcc.map((o) => (classSkipped(o.log) ? skippedClassRow(o) : agendaRow({
       kind: 'class', id: o.cls.id, date: d, title: classTitle(o.cls), job: 'online', time: classTimeOn(o.cls, d),
-      done: !!o.log.done, sub: o.log.topic ? 'Topic: ' + o.log.topic : '',
-    }));
-    if (!items.length) continue;
-    days += `<div class="group-title">${d === todayISO() ? 'Today · ' : ''}${fmtDate(d)}</div><div class="list">${items.map((i) => agendaRow(i)).join('')}</div>`;
+      done: !!o.log.done, sub: o.log.topic ? 'Topic: ' + o.log.topic : o.cls.makeupFor ? 'Make-up class' : '',
+    })));
+    days += `<div class="group-title">${d === todayISO() ? 'Today · ' : ''}${fmtDate(d)}</div><div class="list">${rows.join('')}</div>`;
   }
-  return `<div class="grid grid-2" style="align-items:start">
+  return `${toRescheduleCard()}<div class="grid grid-2" style="align-items:start">
     <section class="card">
       <div class="card-head">
         <h2>${fmtDate(ws, { month: 'short', day: 'numeric' })} – ${fmtDate(we, { month: 'short', day: 'numeric' })}</h2>

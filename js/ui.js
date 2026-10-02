@@ -251,6 +251,7 @@ function agendaRow(it, { showTime = true } = {}) {
       <div class="row-meta">${jobChip(it.job)}${it.recurring ? `<span class="chip outline">${icon('repeat', 'xs')}Fixed</span>` : ''}${['meeting', 'class', 'debt', 'school', 'sub'].includes(it.kind) ? `<span class="chip outline">${KIND_LABEL[it.kind]}</span>` : ''}${it.kind === 'debt' ? '' : prioChip(it.priority)}${it.kind === 'task' && !it.carried ? postponedChip(it.postponedFrom) : ''}${it.sub && it.kind !== 'task' && it.kind !== 'need' ? `<span>${esc(it.sub)}</span>` : ''}</div>
     </div>
     ${it.kind === 'task' && !it.done ? moreBtn(it.id, it.carried && !it.recurring ? it.origDate : it.date) : ''}
+    ${it.kind === 'class' && !it.done ? `<button class="icon-btn sm ghost more-btn" data-action="class-more" data-id="${it.id}" data-date="${it.date}" aria-label="More options: suspend or postpone">${icon('more')}</button>` : ''}
   </div>`;
 }
 

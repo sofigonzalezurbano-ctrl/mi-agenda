@@ -12,7 +12,7 @@ function emptyData() {
     meetings: [],       // {id, studentId, guardian, date, time, topic, notes, done}
     onlineStudents: [], // {id, name, contact, timezone, notes}
     classes: [],        // {id, studentId, subject, startDate, time, times{weekday: time}|null, recurring, days[], endDate, notes}
-    classLogs: {},      // "classId|date" -> {done, topic, homework, notes}
+    classLogs: {},      // "classId|date" -> {done, topic, homework, notes, status: suspended|postponed, postponedTo, makeupId}
     needs: [],          // {id, title, priority, cost, currency, date, notes, done}
     transactions: [],   // {id, type: income|expense|saving, amount, currency, rate (Bs per USD, for VES), category, source, goalId, debtId, date, note}
                         // or {id, type: 'exchange', direction: buy|sell, usd, ves, exRate, method, date, note} (buying/selling dollars)
@@ -256,11 +256,55 @@ function updateClassLog(classId, date, patch) {
 function classTitle(c) {
   const s = onlineStudentById(c.studentId);
   const name = s ? s.name : 'Student';
-  return c.subject ? `${name} · ${c.subject}` : `Class with ${name}`;
+  const title = c.subject ? `${name} · ${c.subject}` : `Class with ${name}`;
+  return c.makeupFor ? `${title} (make-up)` : title;
 }
 
 /** Time of a class on a given day (classes can have a different time per weekday). */
 const classTimeOn = (c, iso) => (c.times && c.times[weekday(iso)]) || c.time || '';
+
+/* Suspended / postponed online classes */
+const classSkipped = (log) => log.status === 'suspended' || log.status === 'postponed';
+
+function suspendClass(classId, date) {
+  const log = classLog(classId, date);
+  if (log.makeupId) Store.remove('classes', log.makeupId);
+  updateClassLog(classId, date, { status: 'suspended', postponedTo: '', makeupId: null, done: false });
+}
+
+/** Postpone one class. With a date it creates a one-off make-up class that day; without one it waits in "To reschedule". */
+function postponeClass(classId, date, to, time) {
+  const c = Store.get('classes', classId);
+  if (!c) return;
+  const log = classLog(classId, date);
+  if (log.makeupId) Store.remove('classes', log.makeupId); // moving it again replaces the previous make-up
+  const makeupId = to ? Store.add('classes', {
+    studentId: c.studentId, subject: c.subject, recurring: false, startDate: to, days: [], times: null,
+    time: time || classTimeOn(c, date), endDate: '', notes: '', makeupFor: logKey(classId, date),
+  }).id : null;
+  updateClassLog(classId, date, { status: 'postponed', postponedTo: to || '', makeupId, done: false });
+}
+
+function restoreClass(classId, date) {
+  const log = classLog(classId, date);
+  if (log.makeupId) Store.remove('classes', log.makeupId);
+  updateClassLog(classId, date, { status: '', postponedTo: '', makeupId: null });
+}
+
+/** Classes postponed without a new date yet. */
+function classesToReschedule() {
+  return Object.entries(Store.data.classLogs)
+    .filter(([, log]) => log.status === 'postponed' && !log.postponedTo)
+    .map(([k]) => { const [classId, date] = k.split('|'); return { cls: Store.get('classes', classId), date }; })
+    .filter((x) => x.cls)
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function classStatusText(log) {
+  if (log.status === 'suspended') return 'Suspended';
+  if (log.status === 'postponed') return log.postponedTo ? `Postponed to ${fmtDate(log.postponedTo)}` : 'Postponed · no date yet';
+  return '';
+}
 
 /** All class occurrences between two ISO dates (inclusive). */
 function classOccurrences(fromIso, toIso) {
@@ -307,9 +351,10 @@ function agendaFor(iso) {
   });
   d.classes.filter((c) => classOccursOn(c, iso)).forEach((c) => {
     const log = classLog(c.id, iso);
+    if (classSkipped(log)) return; // suspended or moved to another day
     items.push({
       kind: 'class', id: c.id, date: iso, title: classTitle(c), job: 'online', time: classTimeOn(c, iso), done: !!log.done,
-      sub: log.topic ? 'Topic: ' + log.topic : 'Online class',
+      sub: log.topic ? 'Topic: ' + log.topic : c.makeupFor ? 'Make-up class' : 'Online class',
     });
   });
   schoolSlotsOn(iso).forEach((s) => {
