@@ -126,7 +126,7 @@ function assessmentsTab() {
     <select class="select-pill" data-change="as-group" aria-label="Filter by group"><option value="all">All groups</option>${groups.map((g) => `<option ${g === ui.asGroup ? 'selected' : ''}>${esc(g)}</option>`).join('')}</select>
   </div>
   <section class="card"><div class="list">${list.map((a) => {
-    const c = countMarks(a.marks);
+    const c = countMarks(a.marks, a.group);
     return `<div class="row ${SKILL_CLASS[a.skill] || 'j-donbosco'}">
       <span class="time">${fmtDate(a.date, { month: 'short', day: 'numeric' })}</span>
       <div class="row-main" data-action="edit-assessment" data-id="${a.id}">

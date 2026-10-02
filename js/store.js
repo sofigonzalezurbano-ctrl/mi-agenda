@@ -115,9 +115,11 @@ const EVAL_KINDS = ['Written test', 'Quiz', 'Oral test', 'Project', 'Presentatio
 const schoolGroups = () => [...new Set(Store.data.students.map(studentGroup))].sort();
 const studentsInGroup = (g) => Store.data.students.filter((s) => studentGroup(s) === g).sort((a, b) => a.name.localeCompare(b.name));
 
-function countMarks(marks) {
+/** Counts per mark; students of the group with no mark count as participated. */
+function countMarks(marks, group) {
   const c = { participated: 0, not: 0, absent: 0 };
-  Object.values(marks || {}).forEach((m) => { if (c[m] !== undefined) c[m]++; });
+  const ids = group ? studentsInGroup(group).map((s) => s.id) : Object.keys(marks || {});
+  ids.forEach((id) => { const m = (marks || {})[id] || 'participated'; if (c[m] !== undefined) c[m]++; });
   return c;
 }
 

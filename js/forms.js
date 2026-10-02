@@ -226,7 +226,7 @@ function assessmentForm(a) {
       { name: 'description', label: 'What did we do?', type: 'textarea', placeholder: 'Activity, pages, instructions…' },
       { name: 'date', label: 'Date', type: 'date', required: true },
       groupField(!!a, groups),
-      { name: 'list', type: 'html', cls: 'mark-box', html: '<div data-marks></div>' },
+      { name: 'list', type: 'html', cls: 'mark-box', html: '<div class="mark-head"><b>Students</b><span class="small muted">Everyone counts as participated — change only who didn’t or was absent.</span></div><div data-marks></div>' },
     ],
     onChange: (v, form) => {
       const box = $('[data-marks]', form);
@@ -234,8 +234,7 @@ function assessmentForm(a) {
       if (box.dataset.key === key) return;
       if (box.dataset.key !== undefined) marks = { ...marks, ...readMarks(form) };
       box.innerHTML = selected(v).length
-        ? markGroupsHTML(selected(v), (g) => markListHTML(g, marks, opts, ''),
-          (g) => `<button type="button" class="btn btn-light btn-sm" data-all-group="${esc(g)}">Everyone participated</button>`)
+        ? markGroupsHTML(selected(v), (g) => markListHTML(g, marks, opts, 'participated'))
         : '<p class="small muted">Pick at least one grade / section.</p>';
       box.dataset.key = key;
     },
@@ -254,11 +253,6 @@ function assessmentForm(a) {
       toast(a ? 'Activity updated' : `Activity saved for ${joinGroups(sel)}`);
     },
     onDelete: a ? () => Store.remove('assessments', a.id) : null,
-  });
-  $('#modal-root [data-marks]').addEventListener('click', (e) => {
-    const b = e.target.closest('[data-all-group]');
-    if (!b) return;
-    $$('input[value="participated"]', b.closest('.mark-group')).forEach((i) => { i.checked = true; });
   });
 }
 
