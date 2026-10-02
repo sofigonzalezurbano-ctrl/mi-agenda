@@ -22,6 +22,7 @@ function emptyData() {
     schoolSchedule: [], // Don Bosco timetable: {id, day (1=Mon…5=Fri), start, end, group, subject, from}
     schoolLogs: {},     // "slotId|date" -> {status: given|not_given|absent, substitute, notes}
     substitutions: [],  // classes I covered for someone else: {id, date, start, end, group, teacher, notes}
+    reminders: [],      // {id, title, date, time, job, notes, leadDays (show on Today this many days before), done, doneAt}
     debts: [],          // {id, creditor, description, amount, currency, installment, repeat: once|monthly, dueDate, notes}
     rates: {},          // date -> Bs per USD (BCV history)
     settings: { name: 'Sofia', rate: 0, rateDate: null, rateSource: null, rateFetchedAt: 0, rateError: null },
@@ -476,6 +477,10 @@ function agendaFor(iso) {
     kind: 'sub', id: x.id, date: iso, title: `Substitution · ${x.group || 'class'}`, job: 'donbosco', time: x.start, end: x.end,
     done: iso <= todayISO(), sub: x.teacher ? `Covered for ${x.teacher}` : 'Substitution',
   }));
+  d.reminders.filter((r) => r.date === iso).forEach((r) => items.push({
+    kind: 'reminder', id: r.id, date: iso, title: r.title, job: r.job || 'personal', time: r.time || null, done: !!r.done,
+    sub: r.notes || '',
+  }));
   d.debts.forEach((debt) => {
     const k = debtOccurrenceOn(debt, iso);
     if (k < 0) return;
@@ -510,6 +515,9 @@ function toggleAgendaItem(kind, id, date) {
     Store.update('meetings', id, { done: !m.done });
   } else if (kind === 'class') {
     updateClassLog(id, date, { done: !classLog(id, date).done });
+  } else if (kind === 'reminder') {
+    const r = Store.get('reminders', id);
+    Store.update('reminders', id, { done: !r.done, doneAt: !r.done ? Date.now() : null });
   } else if (kind === 'makeup') {
     const [evalId, sid] = id.split('~');
     const ev = Store.get('evaluations', evalId);
@@ -521,6 +529,19 @@ function toggleAgendaItem(kind, id, date) {
     const n = Store.get('needs', id);
     Store.update('needs', id, { done: !n.done });
   }
+}
+
+/* ---- Reminders (shown on Today ahead of time) ---- */
+const LEAD_OPTIONS = [[1, '1 day before'], [3, '3 days before'], [7, '1 week before'], [14, '2 weeks before'], [30, '1 month before']];
+
+/** Reminders to show on Today: from `leadDays` before their date, plus missed ones not done yet. */
+function upcomingReminders(iso = todayISO()) {
+  return Store.data.reminders
+    .filter((r) => !r.done && r.date && (r.date < iso || addDays(iso, Number(r.leadDays) || 7) >= r.date))
+    .sort((a, b) => a.date.localeCompare(b.date) || (a.time || '').localeCompare(b.time || ''));
+}
+function daysUntil(iso) {
+  return Math.round((fromISO(iso) - fromISO(todayISO())) / 86400000);
 }
 
 /* ---- Debts ---- */

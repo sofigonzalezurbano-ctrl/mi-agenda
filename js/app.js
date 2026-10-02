@@ -117,6 +117,7 @@ const ACTIONS = {
     else if (kind === 'debt') debtForm(Store.get('debts', id));
     else if (kind === 'school') schoolLogForm(id, date);
     else if (kind === 'sub') substitutionForm(Store.get('substitutions', id));
+    else if (kind === 'reminder') reminderForm(Store.get('reminders', id));
     else if (kind === 'makeup') evaluationForm(Store.get('evaluations', id.split('~')[0]));
   },
   /* quick-add shortcuts */
@@ -195,6 +196,8 @@ const ACTIONS = {
   'edit-goal': (el) => goalForm(Store.get('goals', ds(el).id)),
   'edit-rate': () => rateForm(),
   'new-debt': () => debtForm(),
+  'new-reminder': (el) => reminderForm(null, ds(el).date && ds(el).date > todayISO() ? { date: ds(el).date } : {}),
+  'edit-reminder': (el) => reminderForm(Store.get('reminders', ds(el).id)),
   'edit-debt': (el) => debtForm(Store.get('debts', ds(el).id)),
   'pay-debt': (el) => payDebtForm(ds(el).id),
   'rate-refresh': () => {

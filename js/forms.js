@@ -808,6 +808,29 @@ function exchangeForm(tx) {
   hint();
 }
 
+function reminderForm(r, defaults = {}) {
+  openForm({
+    title: r ? 'Edit reminder' : 'New reminder',
+    values: r || { job: 'personal', leadDays: 7, date: addDays(todayISO(), 7), ...defaults },
+    fields: [
+      { name: 'title', label: 'Remind me about…', required: true, placeholder: 'e.g. Hand in grades, Movita’s anniversary post' },
+      { name: 'date', label: 'Date', type: 'date', required: true, half: true },
+      { name: 'time', label: 'Time (optional)', type: 'time', half: true },
+      { name: 'job', label: 'Area', type: 'select', options: jobOptions(), half: true },
+      { name: 'leadDays', label: 'Show it on Today', type: 'select', options: LEAD_OPTIONS, half: true },
+      { name: 'notes', label: 'Notes', type: 'textarea' },
+      ...(r ? [{ name: 'done', label: 'Done', type: 'checkbox' }] : []),
+    ],
+    onSave: (v) => {
+      v.leadDays = Number(v.leadDays) || 7;
+      if (r) Store.update('reminders', r.id, { ...v, doneAt: v.done ? r.doneAt || Date.now() : null });
+      else Store.add('reminders', { ...v, done: false });
+      toast(r ? 'Reminder updated' : `Reminder set — it shows on Today from ${fmtDate(addDays(v.date, -v.leadDays))}`);
+    },
+    onDelete: r ? () => Store.remove('reminders', r.id) : null,
+  });
+}
+
 function debtForm(d) {
   openForm({
     title: d ? 'Edit debt' : 'New debt',
@@ -908,6 +931,7 @@ function quickAdd(date = todayISO()) {
       ${opt('qa-task-personal', 'personal', 'star', 'Personal task')}
       ${opt('new-need', 'personal', 'bag', 'Something I need')}
       ${opt('new-tx', 'other', 'wallet', 'Money movement')}
+      ${opt('new-reminder', 'personal', 'clock', 'Reminder')}
       ${opt('new-debt', 'personal', 'dollar', 'Debt to pay')}
       ${opt('new-exchange', 'alas', 'refresh', 'Buy / sell $')}
     </div>`);

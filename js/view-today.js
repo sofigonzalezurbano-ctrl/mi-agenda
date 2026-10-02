@@ -125,10 +125,11 @@ function viewToday() {
   const overdueDebts = Store.data.debts.filter((d) => debtStatus(d).overdue);
   const pending = items.filter((i) => !i.done);
   // School classes have their own card with quick buttons, so the reminders list skips them.
-  const listItems = items.filter((i) => i.kind !== 'school' && i.kind !== 'sub');
+  const listItems = items.filter((i) => !['school', 'sub', 'reminder'].includes(i.kind));
   const listPending = listItems.filter((i) => !i.done);
   const done = listItems.filter((i) => i.done);
   const schoolToday = schoolDayList(today);
+  const upcoming = upcomingReminders(today);
   const noDateTasks = Store.data.tasks.filter((t) => !t.recurring && t.indefinite && !t.date && !t.done && !isCancelled(t)).sort(byPriority);
 
   const highPending = Store.data.tasks.filter((t) => taskIsPending(t) && t.priority === 'high').length;
@@ -174,6 +175,22 @@ function viewToday() {
     </div>
 
     <div class="grid" style="gap:16px">
+      <section class="card reminders-card" aria-labelledby="rmd-h">
+        <div class="card-head"><h2 id="rmd-h">Reminders</h2><button class="btn btn-light btn-sm" data-action="new-reminder">${icon('plus')}Reminder</button></div>
+        <div class="list">${upcoming.map((r) => {
+          const n = daysUntil(r.date);
+          const badge = n < 0 ? `${-n} day${n < -1 ? 's' : ''} late` : n === 0 ? 'Today' : n === 1 ? 'Tomorrow' : `In ${n} days`;
+          return `<div class="row j-${r.job || 'personal'} ${n < 0 ? 'carried' : ''}">
+            <span class="countdown ${n <= 1 ? 'soon' : ''}">${badge}</span>
+            ${checkBtn(false, `data-action="toggle-item" data-kind="reminder" data-id="${r.id}" data-date="${r.date}"`, r.title)}
+            <div class="row-main" data-action="edit-reminder" data-id="${r.id}">
+              <div class="row-title">${esc(r.title)}</div>
+              <div class="row-meta">${jobChip(r.job || 'personal')}<span>${fmtLongDate(r.date)}${r.time ? ' · ' + fmtTime(r.time) : ''}</span>${r.notes ? `<span>${esc(r.notes)}</span>` : ''}</div>
+            </div>
+          </div>`;
+        }).join('') || emptyState('Nothing coming up in the next week. Add a reminder and it shows up here a week before.', 'clock')}</div>
+      </section>
+
       ${schoolToday ? `<section class="card" aria-labelledby="sch-h">
         <div class="card-head"><h2 id="sch-h">Don Bosco today</h2><button class="btn btn-light btn-sm" data-route-to="donbosco" data-tab="schedule">Timetable</button></div>
         ${schoolToday}
