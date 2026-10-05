@@ -3,6 +3,7 @@
 /* ============ Constants ============ */
 const JOBS = {
   donbosco: { label: 'Don Bosco', group: 'Teacher' },
+  agency:   { label: '4 Eleven Media', group: '4 Eleven Media' },
   movita:   { label: 'Movita Juice Bar', group: '4 Eleven Media' },
   alas:     { label: 'Alas Kitchen', group: '4 Eleven Media' },
   casita:   { label: 'La Casita Mexicana', group: '4 Eleven Media' },
@@ -10,10 +11,21 @@ const JOBS = {
   online:   { label: 'Online Classes', group: 'Online Teacher' },
   personal: { label: 'Personal', group: 'Personal' },
 };
-const JOB_ORDER = ['donbosco', 'movita', 'alas', 'casita', 'foureleven', 'online', 'personal'];
+const JOB_ORDER = ['donbosco', 'agency', 'movita', 'alas', 'casita', 'foureleven', 'online', 'personal'];
 const RESTAURANTS = ['movita', 'alas', 'casita'];
-/** Jobs that belong to 4 Eleven Media: each restaurant plus tasks shared by all three. */
-const FE_JOBS = [...RESTAURANTS, 'foureleven'];
+/** Jobs that belong to 4 Eleven Media: the company itself, each restaurant, and tasks shared by all three. */
+const FE_JOBS = ['agency', ...RESTAURANTS, 'foureleven'];
+
+/** Big areas used to group the day: 4 Eleven Media gathers the company and its restaurants. */
+const AREAS = [
+  { key: 'donbosco', label: 'Don Bosco', jobs: ['donbosco'] },
+  { key: 'agency', label: '4 Eleven Media', jobs: FE_JOBS },
+  { key: 'online', label: 'Online Classes', jobs: ['online'] },
+  { key: 'personal', label: 'Personal', jobs: ['personal'] },
+];
+const areaOf = (job) => (AREAS.find((a) => a.jobs.includes(job)) || AREAS[AREAS.length - 1]).key;
+/** Subtitle inside the 4 Eleven Media block. */
+const SUB_LABEL = { agency: '4 Eleven (company)' };
 
 const PRIORITIES = {
   high:   { label: 'High', rank: 0 },

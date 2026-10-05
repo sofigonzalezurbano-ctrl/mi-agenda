@@ -202,7 +202,7 @@ function viewToday() {
           <button class="btn btn-light btn-sm" data-action="quick-add" data-date="${today}">${icon('plus')}Add</button>
         </div>
         <div class="list">
-          ${listPending.map((i) => agendaRow(i)).join('') || (listItems.length ? emptyState('Everything for today is done. Amazing!', 'sparkle') : emptyState('Nothing scheduled for today. Add tasks, classes or meetings with a date to see them here.', 'calendar'))}
+          ${groupedAgendaHTML(listPending) || (listItems.length ? emptyState('Everything for today is done. Amazing!', 'sparkle') : emptyState('Nothing scheduled for today. Add tasks, classes or meetings with a date to see them here.', 'calendar'))}
         </div>
         ${noDateTasks.length ? `<details class="done-list" data-key="today-nodate" ${App.openDetails.has('today-nodate') ? 'open' : ''}>
           <summary class="group-title">Postponed · no date <span class="count">${noDateTasks.length}</span></summary>
@@ -226,7 +226,7 @@ function viewToday() {
 
       <section class="card" aria-labelledby="tm-h">
         <div class="card-head"><h2 id="tm-h">Tomorrow</h2><span class="muted">${fmtDate(addDays(today, 1))}</span></div>
-        <div class="list">${tomorrow.map((i) => agendaRow(i)).join('') || emptyState('Nothing yet for tomorrow.', 'calendar')}</div>
+        ${groupedAgendaHTML(tomorrow) || emptyState('Nothing yet for tomorrow.', 'calendar')}
       </section>
     </div>
   </div>`;

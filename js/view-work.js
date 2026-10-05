@@ -306,23 +306,24 @@ function viewFourEleven() {
   const rest = App.ui.fe.rest;
   const all = Store.data.tasks.filter((t) => FE_JOBS.includes(t.job));
   // A restaurant's view also includes the tasks shared by all three.
+  // A restaurant's view also includes the tasks shared by all three.
   const shown = rest === 'all' ? all
-    : rest === 'foureleven' ? all.filter((t) => t.job === 'foureleven')
-    : all.filter((t) => t.job === rest || t.job === 'foureleven');
+    : RESTAURANTS.includes(rest) ? all.filter((t) => t.job === rest || t.job === 'foureleven')
+    : all.filter((t) => t.job === rest);
   const today = todayISO();
   const sharedPending = all.filter((t) => t.job === 'foureleven' && taskIsPending(t)).length;
   return `
   ${workSwitcher('foureleven')}
   <header class="page-head">
     <div><p class="eyebrow">Executive Assistant</p><h1>4 Eleven Media</h1></div>
-    <div class="head-actions"><button class="btn btn-dark" data-action="new-task" data-job="${rest === 'all' ? 'movita' : rest}" data-jobs="restaurants">${icon('plus')}Task</button></div>
+    <div class="head-actions"><button class="btn btn-dark" data-action="new-task" data-job="${rest === 'all' ? 'agency' : rest}" data-jobs="restaurants">${icon('plus')}Task</button></div>
   </header>
-  <div class="grid grid-4" style="margin-bottom:18px">
+  <div class="grid fe-grid" style="margin-bottom:18px">
     ${FE_JOBS.map((r) => {
       const pend = all.filter((t) => t.job === r && taskIsPending(t));
       const todayN = pend.filter((t) => taskOccursOn(t, today)).length;
       const high = pend.filter((t) => t.priority === 'high').length;
-      const extra = r !== 'foureleven' && sharedPending ? ` · +${sharedPending} shared` : '';
+      const extra = RESTAURANTS.includes(r) && sharedPending ? ` · +${sharedPending} shared` : '';
       return `<button class="job-card j-${r} ${rest === r ? 'active' : ''}" data-action="fe-rest" data-rest="${rest === r ? 'all' : r}" aria-pressed="${rest === r}">
         <span class="name">${esc(JOBS[r].label)}</span>
         <span class="num">${pend.length}</span>

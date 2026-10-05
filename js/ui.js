@@ -246,7 +246,7 @@ function taskBoard(tasks, opts = {}) {
 
 const KIND_LABEL = { meeting: 'Meeting', class: 'Class', need: 'Need', task: 'Task', debt: 'Debt', school: 'Class', sub: 'Substitution', makeup: 'Make-up', reminder: 'Reminder' };
 
-function agendaRow(it, { showTime = true } = {}) {
+function agendaRow(it, { showTime = true, hideJob = false } = {}) {
   const data = `data-kind="${it.kind}" data-id="${it.id}" data-date="${it.date}"`;
   const timeLabel = it.carried ? 'Overdue' : it.time ? fmtTime(it.time) : 'Anytime';
   return `<div class="row j-${it.job} ${it.done ? 'done' : ''} ${it.carried ? 'carried' : ''}">
@@ -255,11 +255,37 @@ function agendaRow(it, { showTime = true } = {}) {
     <div class="row-main" data-action="open-item" ${data}>
       <div class="row-title">${esc(it.title)}</div>
       ${it.carried ? `<div class="carried-note">⚠ Not done on ${fmtDate(it.origDate)} — urgent, do it first</div>` : ''}
-      <div class="row-meta">${jobChip(it.job)}${it.recurring ? `<span class="chip outline">${icon('repeat', 'xs')}Fixed</span>` : ''}${['meeting', 'class', 'debt', 'school', 'sub', 'makeup', 'reminder'].includes(it.kind) ? `<span class="chip outline">${KIND_LABEL[it.kind]}</span>` : ''}${it.kind === 'debt' ? '' : prioChip(it.priority)}${it.kind === 'task' && !it.carried ? postponedChip(it.postponedFrom) : ''}${it.sub && it.kind !== 'task' && it.kind !== 'need' ? `<span>${esc(it.sub)}</span>` : ''}</div>
+      <div class="row-meta">${hideJob ? '' : jobChip(it.job)}${it.recurring ? `<span class="chip outline">${icon('repeat', 'xs')}Fixed</span>` : ''}${['meeting', 'class', 'debt', 'school', 'sub', 'makeup', 'reminder'].includes(it.kind) ? `<span class="chip outline">${KIND_LABEL[it.kind]}</span>` : ''}${it.kind === 'debt' ? '' : prioChip(it.priority)}${it.kind === 'task' && !it.carried ? postponedChip(it.postponedFrom) : ''}${it.sub && it.kind !== 'task' && it.kind !== 'need' ? `<span>${esc(it.sub)}</span>` : ''}</div>
     </div>
     ${it.kind === 'task' && !it.done ? moreBtn(it.id, it.carried && !it.recurring ? it.origDate : it.date) : ''}
     ${it.kind === 'class' && !it.done ? `<button class="icon-btn sm ghost more-btn" data-action="class-more" data-id="${it.id}" data-date="${it.date}" aria-label="More options: suspend or postpone">${icon('more')}</button>` : ''}
   </div>`;
+}
+
+/**
+ * The day's items grouped by area (Don Bosco, 4 Eleven Media with a subtitle per restaurant/company,
+ * Online Classes, Personal). Things not done before come first, in their own red block.
+ */
+function groupedAgendaHTML(items) {
+  const rows = (list) => `<div class="list">${list.map((i) => agendaRow(i, { hideJob: true })).join('')}</div>`;
+  const carried = items.filter((i) => i.carried);
+  const rest = items.filter((i) => !i.carried);
+  let html = carried.length
+    ? `<div class="area-block"><div class="area-title danger">⚠ Not done before — do these first <span class="count">${carried.length}</span></div>
+        <div class="list">${carried.map((i) => agendaRow(i)).join('')}</div></div>`
+    : '';
+  AREAS.forEach((a) => {
+    const its = rest.filter((i) => areaOf(i.job) === a.key);
+    if (!its.length) return;
+    const body = a.jobs.length > 1
+      ? a.jobs.map((j) => {
+        const g = its.filter((i) => i.job === j);
+        return g.length ? `<div class="sub-title j-${j}"><span class="nav-dot"></span>${esc(SUB_LABEL[j] || JOBS[j].label)}</div>${rows(g)}` : '';
+      }).join('')
+      : rows(its);
+    html += `<div class="area-block"><div class="area-title j-${a.key}"><span class="nav-dot"></span>${esc(a.label)} <span class="count">${its.length}</span></div>${body}</div>`;
+  });
+  return html;
 }
 
 /** Segmented donut: one arc per job sized by its share of today's items; filled part = done. */
@@ -275,9 +301,10 @@ function progressRing(items) {
   if (!total) {
     arcs = `<circle cx="110" cy="110" r="${r}" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="${sw}"/>`;
   }
-  const activeJobs = JOB_ORDER.filter((j) => items.some((i) => i.job === j));
+  const inArea = (key) => items.filter((i) => areaOf(i.job) === key);
+  const activeJobs = AREAS.map((a) => a.key).filter((k) => inArea(k).length);
   activeJobs.forEach((job) => {
-    const its = items.filter((i) => i.job === job);
+    const its = inArea(job);
     const seg = (its.length / total) * C;
     const len = Math.max(seg - gap, 1);
     arcs += circle(job, 'var(--cs)', len);
@@ -286,9 +313,9 @@ function progressRing(items) {
     off += seg;
   });
   const legend = activeJobs.map((job) => {
-    const its = items.filter((i) => i.job === job);
+    const its = inArea(job);
     const d = its.filter((i) => i.done).length;
-    return `<div class="lg j-${job}"><span class="nav-dot"></span><span>${esc(JOBS[job].label)}</span><b>${d}/${its.length}</b>
+    return `<div class="lg j-${job}"><span class="nav-dot"></span><span>${esc(AREAS.find((a) => a.key === job).label)}</span><b>${d}/${its.length}</b>
       <div class="bar"><i style="width:${(d / its.length) * 100}%"></i></div></div>`;
   }).join('');
   return `<div class="ring" role="img" aria-label="${pct}% of today's items done">
