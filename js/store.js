@@ -406,6 +406,14 @@ function classStatusText(log) {
   return '';
 }
 
+/** Deletes a money movement (and un-links an online class it paid, if any). */
+function deleteTransaction(id) {
+  const tx = Store.get('transactions', id);
+  if (!tx) return;
+  if (tx.classKey && Store.data.classLogs[tx.classKey]) Object.assign(Store.data.classLogs[tx.classKey], { paid: false, txId: null });
+  Store.remove('transactions', id);
+}
+
 /** All class occurrences between two ISO dates (inclusive). */
 function classOccurrences(fromIso, toIso) {
   const out = [];

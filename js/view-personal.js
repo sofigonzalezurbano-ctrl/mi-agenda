@@ -213,6 +213,7 @@ function exchangeRow(t) {
       <div class="row-meta"><span class="chip">${esc(t.method || 'Other')}</span><span>@ ${money(t.exRate || (t.usd ? t.ves / t.usd : 0), 'VES')}</span></div>
     </div>
     <span class="tx-amt"><span class="amt ${buy ? 'in' : 'out'}">${buy ? '+' : '−'} ${money(t.usd, 'USD')}</span><span class="small muted">${buy ? '−' : '+'} ${money(t.ves, 'VES')}</span></span>
+    <button class="icon-btn sm ghost tx-del" data-action="delete-tx" data-id="${t.id}" aria-label="Delete this movement">${icon('trash')}</button>
   </div>`;
 }
 
@@ -338,6 +339,7 @@ function viewFinances() {
           <div class="row-meta"><span class="chip">${esc(t.type === 'saving' ? (goal ? goal.name : 'General savings') : t.category || '')}</span>${t.type === 'income' && t.source ? `<span>${esc(INCOME_SOURCES[t.source] || '')}</span>` : ''}${t.currency === 'VES' && txRate(t) ? `<span>@ ${money(txRate(t), 'VES')}</span>` : ''}</div>
         </div>
         <span class="tx-amt"><span class="amt ${amtCls[t.type]}">${sign[t.type]} ${money(t.amount, t.currency)}</span>${usd !== null && t.currency === 'VES' ? `<span class="small muted">≈ ${money(usd, 'USD')}</span>` : ''}</span>
+        <button class="icon-btn sm ghost tx-del" data-action="delete-tx" data-id="${t.id}" aria-label="Delete this movement">${icon('trash')}</button>
       </div>`;
     }).join('') || emptyState('No movements this month.', 'wallet')}</div>
   </section>`;

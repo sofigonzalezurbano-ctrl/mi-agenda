@@ -188,6 +188,14 @@ const ACTIONS = {
   'edit-need': (el) => needForm(Store.get('needs', ds(el).id)),
   'toggle-need': (el) => { toggleAgendaItem('need', ds(el).id); },
   'new-tx': (el) => txForm(null, { ...(ds(el).type ? { type: ds(el).type } : {}), ...(ds(el).goal ? { goalId: ds(el).goal } : {}) }),
+  'delete-tx': (el) => {
+    const t = Store.get('transactions', ds(el).id);
+    if (!t) return;
+    const what = t.type === 'exchange' ? `${t.direction === 'sell' ? 'Sold' : 'Bought'} ${money(t.usd, 'USD')}` : `${t.note || t.category || 'Movement'} · ${money(t.amount, t.currency)}`;
+    if (!confirm(`Delete this movement?\n\n${what} — ${fmtDate(t.date)}`)) return;
+    deleteTransaction(t.id);
+    toast('Movement deleted');
+  },
   'edit-tx': (el) => { const t = Store.get('transactions', ds(el).id); if (t.type === 'exchange') exchangeForm(t); else txForm(t); },
   'new-exchange': () => exchangeForm(),
   'fin-month': (el) => { App.ui.fin.month = monthKey(addMonths(App.ui.fin.month + '-01', Number(ds(el).dir))); },

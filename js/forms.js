@@ -751,11 +751,8 @@ function txForm(tx, defaults = {}) {
       const debt = rec.debtId && Store.get('debts', rec.debtId);
       toast(tx ? 'Movement updated' : debt ? (debtStatus(debt).done ? `${debt.creditor} is fully paid! 🎉` : 'Payment recorded') : 'Movement added');
     },
-    onDelete: tx ? () => {
-      // Keep the linked class in sync if this payment came from an online class.
-      if (tx.classKey && Store.data.classLogs[tx.classKey]) Object.assign(Store.data.classLogs[tx.classKey], { paid: false, txId: null });
-      Store.remove('transactions', tx.id);
-    } : null,
+    onDelete: tx ? () => deleteTransaction(tx.id) : null,
+    deleteConfirm: 'Delete this money movement?',
   });
   const form = $('#modal-root form');
   // Live conversion while typing the amount.

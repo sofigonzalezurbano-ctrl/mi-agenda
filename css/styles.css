@@ -364,6 +364,8 @@ details[open].done-list summary::after { content: "–"; }
 .ex-box { background: var(--surface-2); border-radius: 18px; padding: 14px 16px; display: flex; flex-direction: column; gap: 2px; }
 .ex-box.buy { background: #dcefdc; } .ex-box.sell { background: #fbe1d0; }
 .wallet-row.ex .amt { color: #3a6fc9; }
+.tx-del { color: var(--ink-3); }
+.tx-del:hover { color: #c0392b; }
 .tx-amt { display: flex; flex-direction: column; align-items: flex-end; flex: none; }
 .debt-summary { display: flex; gap: 24px; flex-wrap: wrap; justify-content: space-between; background: var(--surface-2); border-radius: 18px; padding: 14px 16px; margin-bottom: 12px; }
 .next-pay { font-size: 14px; margin-top: 4px; }
