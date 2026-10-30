@@ -341,9 +341,28 @@ const evalColumns = () => {
   return [...map.values()].sort((a, b) => a.date.localeCompare(b.date) || a.title.localeCompare(b.title));
 };
 
+const PDF_LIBS = [
+  'https://cdnjs.cloudflare.com/ajax/libs/jspdf/4.2.1/jspdf.umd.min.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/5.0.9/jspdf.plugin.autotable.min.js',
+];
+let pdfLibsReady = null;
+/** Loads jsPDF once (needed only for reports). */
+function loadPdfLibs() {
+  if (!pdfLibsReady) {
+    pdfLibsReady = PDF_LIBS.reduce((p, src) => p.then(() => new Promise((res, rej) => {
+      const el = document.createElement('script');
+      el.src = src; el.onload = res; el.onerror = () => { pdfLibsReady = null; rej(new Error('load')); };
+      document.head.appendChild(el);
+    })), Promise.resolve());
+  }
+  return pdfLibsReady;
+}
+const pdfLibsLoaded = () => !!(window.jspdf && window.jspdf.jsPDF && window.jspdf.jsPDF.API.autoTable);
+
 function missedReportSheet() {
   const cols = evalColumns();
   if (!cols.length) { toast('Add an evaluation first'); return; }
+  loadPdfLibs().catch(() => toast('No internet — the PDF tool could not load'));
   const since = addDays(todayISO(), -30);
   openForm({
     title: 'Missed evaluations report', wide: true, submitLabel: 'Create PDF',
@@ -356,65 +375,130 @@ function missedReportSheet() {
       { name: 'title', label: 'Report title', required: true, placeholder: 'e.g. Unit 1 – Missed evaluations' },
       { name: 'subtitle', label: 'Subtitle' },
       { name: 'cols', label: 'Evaluations to include (one column each)', type: 'multi', options: cols.map((c) => [c.key, `${c.title} · ${reportDate(c.date)}`]) },
-      { name: 'hint', type: 'html', cls: 'small', html: 'On the print screen choose <b>Save as PDF</b> (Mac) or share → <b>Save to Files</b> (iPhone).' },
+      { name: 'hint', type: 'html', cls: 'small', html: 'On iPhone the share menu opens: choose <b>Save to Files</b>, WhatsApp, Mail… On the Mac it downloads.' },
     ],
     onSave: (v) => {
       const chosen = cols.filter((c) => v.cols.includes(c.key));
       if (!chosen.length) { toast('Pick at least one evaluation'); return false; }
-      printHTML(missedReportHTML(v.title, v.subtitle, chosen), v.title);
+      if (!pdfLibsLoaded()) { toast('Preparing the PDF tool… tap Create PDF again in a second'); return false; }
+      // Built synchronously so the iPhone share menu still counts as a response to the tap.
+      deliverPDF(missedReportPDF(v.title, v.subtitle, chosen), v.title);
     },
   });
 }
 
-function missedReportHTML(title, subtitle, cols) {
+/** Tables for the report: per section, only students who missed/refused at least one chosen evaluation. */
+function missedReportData(cols) {
   const groups = [...new Set(Store.data.evaluations.filter((e) => cols.some((c) => c.key === `${e.title}|${e.date}`)).map((e) => e.group))].sort();
-  const sections = groups.map((g) => {
+  return groups.map((g) => {
     // Class-list numbers: students of the group ordered by surname.
-    const roster = studentsInGroup(g).slice().sort((a, b) => normName(splitName(a.name).last + ' ' + a.name).localeCompare(normName(splitName(b.name).last + ' ' + b.name)));
+    const sortKey = (s) => normName(`${splitName(s.name).last} ${s.name}`);
+    const roster = studentsInGroup(g).slice().sort((a, b) => sortKey(a).localeCompare(sortKey(b)));
     const recs = cols.map((c) => Store.data.evaluations.find((e) => e.group === g && e.title === c.title && e.date === c.date));
-    const status = (rec, sid) => {
-      if (!rec) return 'none';
+    const cell = (rec, sid) => {
+      if (!rec) return { st: 'none' };
       const a = (rec.absences || {})[sid];
-      return !a ? 'took' : a.refused ? 'refused' : 'missed';
+      return !a ? { st: 'took' } : { st: a.refused ? 'refused' : 'missed', done: !!a.done };
     };
-    const rows = roster.map((s, i) => ({ s, n: i + 1, st: recs.map((r) => status(r, s.id)) }))
-      .filter((r) => r.st.some((x) => x === 'missed' || x === 'refused'));
-    if (!rows.length) return `<h2>${esc(g)}</h2><p class="rp-none">Everyone took all the evaluations. 🎉</p>`;
-    const cell = (st, rec, sid) => {
-      const done = st !== 'took' && st !== 'none' && rec.absences[sid].done;
-      const label = { took: 'Took it', missed: 'Missed', refused: 'Refused', none: '—' }[st];
-      return `<td class="rp-${st}">${label}${done ? '<small>made up</small>' : ''}</td>`;
-    };
-    const totals = recs.map((r, ci) => {
-      const m = rows.filter((x) => x.st[ci] === 'missed').length;
-      const f = rows.filter((x) => x.st[ci] === 'refused').length;
-      return `<td>${m}${f ? ` <small class="rp-ref">+${f} refused</small>` : ''}</td>`;
-    }).join('');
-    return `<h2>${esc(g)}</h2>
-      <table>
-        <thead><tr><th class="rp-num">#</th><th class="rp-name">Student</th>${cols.map((c) => `<th>${esc(c.title)}<small>${reportDate(c.date)}</small></th>`).join('')}</tr></thead>
-        <tbody>${rows.map((r) => { const nm = splitName(r.s.name); return `<tr><td class="rp-num">${r.n}</td><td class="rp-name">${esc(nm.last)}, ${esc(nm.first)}</td>${r.st.map((st, ci) => cell(st, recs[ci], r.s.id)).join('')}</tr>`; }).join('')}</tbody>
-        <tfoot><tr><td></td><td class="rp-name">Total missed</td>${totals}</tr></tfoot>
-      </table>`;
-  }).join('');
-  return `<div class="report">
-    <h1>${esc(title)}</h1>
-    <p class="rp-sub">${esc(subtitle)}${subtitle ? ' · ' : ''}Only students who missed or refused at least one evaluation</p>
-    <div class="rp-legend"><span class="rp-missed">Missed</span><span class="rp-took">Took it</span><span class="rp-refused">Refused (was present)</span></div>
-    ${sections}
-  </div>`;
+    const rows = roster.map((s, i) => ({ n: i + 1, name: splitName(s.name), cells: recs.map((r) => cell(r, s.id)) }))
+      .filter((r) => r.cells.some((c) => c.st === 'missed' || c.st === 'refused'));
+    const totals = cols.map((c, ci) => ({
+      missed: rows.filter((r) => r.cells[ci].st === 'missed').length,
+      refused: rows.filter((r) => r.cells[ci].st === 'refused').length,
+    }));
+    return { group: g, rows, totals };
+  });
 }
 
-/** Prints only the given HTML (the browser's print dialog can save it as a PDF). */
-function printHTML(html, title) {
-  let root = document.getElementById('print-root');
-  if (!root) { root = document.createElement('div'); root.id = 'print-root'; document.body.appendChild(root); }
-  root.innerHTML = html;
-  const oldTitle = document.title;
-  document.title = title; // becomes the PDF file name
-  const cleanup = () => { root.innerHTML = ''; document.title = oldTitle; window.removeEventListener('afterprint', cleanup); };
-  window.addEventListener('afterprint', cleanup);
-  setTimeout(() => window.print(), 150);
+const RP_COLORS = {
+  missed: { fill: [251, 225, 225], text: [192, 57, 43], bold: true, label: 'Missed' },
+  took: { fill: [230, 244, 234], text: [79, 138, 91], bold: false, label: 'Took it' },
+  refused: { fill: [253, 240, 200], text: [168, 116, 10], bold: true, label: 'Refused' },
+  none: { fill: [255, 255, 255], text: [154, 146, 136], bold: false, label: '—' },
+};
+
+/** Builds the report as a real PDF file (A4). */
+function missedReportPDF(title, subtitle, cols) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+  const M = 40;
+  let y = 54;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.setTextColor(29, 27, 25);
+  doc.text(title, M, y);
+  y += 16;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(107, 101, 93);
+  doc.text(`${subtitle ? subtitle + ' · ' : ''}Only students who missed or refused at least one evaluation`, M, y);
+  y += 18;
+  // Legend
+  let x = M;
+  [['missed', 'Missed'], ['took', 'Took it'], ['refused', 'Refused (was present)']].forEach(([k, label]) => {
+    const c = RP_COLORS[k];
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8);
+    const w = doc.getTextWidth(label) + 12;
+    doc.setFillColor(...c.fill); doc.roundedRect(x, y - 9, w, 14, 3, 3, 'F');
+    doc.setTextColor(...c.text); doc.text(label, x + 6, y + 1);
+    x += w + 6;
+  });
+  y += 22;
+
+  missedReportData(cols).forEach((sec) => {
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(29, 27, 25);
+    if (y > 760) { doc.addPage(); y = 54; }
+    doc.text(sec.group, M, y);
+    y += 6;
+    if (!sec.rows.length) {
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(107, 101, 93);
+      doc.text('Everyone took all the evaluations.', M, y + 12);
+      y += 34;
+      return;
+    }
+    const head = [['#', 'Student', ...cols.map((c) => `${c.title}\n${reportDate(c.date)}`)]];
+    const body = sec.rows.map((r) => [String(r.n), `${r.name.last}, ${r.name.first}`,
+      ...r.cells.map((c) => RP_COLORS[c.st].label + (c.done ? '\nmade up' : ''))]);
+    const foot = [['', 'Total missed', ...sec.totals.map((t) => `${t.missed}${t.refused ? ` +${t.refused} refused` : ''}`)]];
+    doc.autoTable({
+      startY: y, head, body, foot, margin: { left: M, right: M }, theme: 'plain',
+      styles: { font: 'helvetica', fontSize: 8.5, cellPadding: { top: 4, bottom: 4, left: 5, right: 5 }, textColor: [29, 27, 25], halign: 'center', valign: 'middle', lineColor: [236, 230, 220], lineWidth: { bottom: 0.6 } },
+      headStyles: { fontStyle: 'bold', fontSize: 8.5, lineColor: [154, 146, 136], lineWidth: { bottom: 1.2 } },
+      footStyles: { fontStyle: 'bold', lineWidth: 0 },
+      columnStyles: { 0: { halign: 'left', textColor: [154, 146, 136], cellWidth: 22 }, 1: { halign: 'left', cellWidth: 150 } },
+      didParseCell: (d) => {
+        if (d.section === 'head' && d.column.index > 1) d.cell.styles.halign = 'center';
+        if (d.section === 'head' && d.column.index <= 1) d.cell.styles.halign = 'left';
+        if (d.section === 'foot' && d.column.index === 1) d.cell.styles.halign = 'left';
+        if (d.section === 'body' && d.column.index > 1) {
+          const c = RP_COLORS[sec.rows[d.row.index].cells[d.column.index - 2].st];
+          d.cell.styles.fillColor = c.fill;
+          d.cell.styles.textColor = c.text;
+          d.cell.styles.fontStyle = c.bold ? 'bold' : 'normal';
+          d.cell.styles.lineColor = [255, 255, 255];
+          d.cell.styles.lineWidth = { bottom: 1.5 };
+        }
+      },
+    });
+    y = doc.lastAutoTable.finalY + 26;
+  });
+  return doc.output('blob');
+}
+
+/** iPhone/iPad/Android: open the share menu (Save to Files, WhatsApp…). Computer: download the file. */
+function deliverPDF(blob, title) {
+  const name = `${title.replace(/[\\/:*?"<>|]+/g, '-').trim() || 'Report'}.pdf`;
+  const file = new File([blob], name, { type: 'application/pdf' });
+  const mobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
+  if (mobile && navigator.canShare && navigator.canShare({ files: [file] })) {
+    navigator.share({ files: [file], title }).catch((e) => { if (e.name !== 'AbortError') openPdfFallback(blob, name); });
+    return;
+  }
+  openPdfFallback(blob, name);
+}
+function openPdfFallback(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name; a.rel = 'noopener';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+  toast('PDF downloaded');
 }
 
 function makeupDateForm(evalId, sid) {
