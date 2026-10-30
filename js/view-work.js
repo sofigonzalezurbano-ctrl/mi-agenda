@@ -166,6 +166,7 @@ function evaluationsTab() {
   </section>
   <div class="tabs-row">
     <h2 style="font-size:19px">Evaluations</h2>
+    <button class="btn btn-dark btn-sm" data-action="missed-report">${icon('download')}Missed evaluations report (PDF)</button>
     <select class="select-pill" data-change="ev-group" aria-label="Filter by group"><option value="all">All groups</option>${groups.map((g) => `<option ${g === ui.evGroup ? 'selected' : ''}>${esc(g)}</option>`).join('')}</select>
   </div>
   <section class="card"><div class="list">${list.map((e) => {
