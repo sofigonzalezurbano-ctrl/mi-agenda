@@ -406,6 +406,20 @@ function classStatusText(log) {
   return '';
 }
 
+/** Erases all finance records (movements, exchanges, goals, debts). A copy goes to the 30-day trash. */
+function eraseFinances() {
+  const d = Store.data;
+  const keys = ['transactions', 'goals', 'debts'];
+  const copies = [];
+  keys.forEach((c) => d[c].forEach((x) => copies.push({ key: `${c}__${x.id}`, json: stableJSON(x) })));
+  if (typeof trashPut === 'function') trashPut(copies);
+  keys.forEach((c) => { d[c] = []; });
+  Object.values(d.classLogs).forEach((log) => { if (log.txId) log.txId = null; });
+  if (typeof CloudSync !== 'undefined') CloudSync.allowBulkDelete = true;
+  Store.save();
+  return copies.length;
+}
+
 /** Deletes a money movement (and un-links an online class it paid, if any). */
 function deleteTransaction(id) {
   const tx = Store.get('transactions', id);

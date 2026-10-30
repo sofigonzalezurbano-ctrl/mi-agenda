@@ -364,6 +364,7 @@ details[open].done-list summary::after { content: "–"; }
 .ex-box { background: var(--surface-2); border-radius: 18px; padding: 14px 16px; display: flex; flex-direction: column; gap: 2px; }
 .ex-box.buy { background: #dcefdc; } .ex-box.sell { background: #fbe1d0; }
 .wallet-row.ex .amt { color: #3a6fc9; }
+.start-over { margin-top: 16px; display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
 .tx-del { color: var(--ink-3); }
 .tx-del:hover { color: #c0392b; }
 .tx-amt { display: flex; flex-direction: column; align-items: flex-end; flex: none; }

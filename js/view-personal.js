@@ -342,5 +342,10 @@ function viewFinances() {
         <button class="icon-btn sm ghost tx-del" data-action="delete-tx" data-id="${t.id}" aria-label="Delete this movement">${icon('trash')}</button>
       </div>`;
     }).join('') || emptyState('No movements this month.', 'wallet')}</div>
+  </section>
+
+  <section class="card start-over">
+    <div><b>Start over</b><p class="small muted" style="margin:4px 0 0">Erase every money movement, savings goal, debt and dollar exchange (all months). The BCV rate history stays.</p></div>
+    <button class="btn btn-light btn-sm danger" data-action="erase-finances">${icon('trash')}Erase all finance data</button>
   </section>`;
 }

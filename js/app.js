@@ -53,6 +53,14 @@ const ACTIONS = {
   'quick-add': (el) => quickAdd(ds(el).date || (App.route === 'calendar' ? App.ui.cal.cursor : todayISO())),
   settings: () => settingsSheet(),
   export: () => exportBackup(),
+  'erase-finances': () => {
+    const n = Store.data.transactions.length + Store.data.goals.length + Store.data.debts.length;
+    if (!n) { toast('Your finances are already empty'); return; }
+    if (!confirm(`Erase ALL your finance data?\n\n${n} records: money movements, dollar exchanges, savings goals and debts — from every month and every synced device.`)) return;
+    if (!confirm('Are you sure? (A copy stays in Settings → Recently deleted for 30 days.)')) return;
+    eraseFinances();
+    toast('Finances erased — ready to start fresh');
+  },
   'trash-restore': (el) => {
     const label = TRASH_LABELS[ds(el).coll] || ds(el).coll;
     if (!confirm(`Restore deleted ${label}?`)) return;
