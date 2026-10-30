@@ -584,3 +584,17 @@ details[open].done-list summary::after { content: "–"; }
   .money-card .big { font-size: 22px; }
   .converter { width: 100%; }
 }
+
+/* Installed desktop app with the title bar hidden (Chrome "window controls overlay"):
+   the app fills the top of the window; this strip keeps it draggable and clear of the window buttons. */
+.titlebar-drag { display: none; }
+@media (display-mode: window-controls-overlay) {
+  .titlebar-drag {
+    display: block; position: fixed; z-index: 30;
+    top: env(titlebar-area-y, 0); left: env(titlebar-area-x, 0);
+    width: env(titlebar-area-width, 100%); height: env(titlebar-area-height, 0);
+    -webkit-app-region: drag; app-region: drag;
+  }
+  .app { padding-top: env(titlebar-area-height, 0); }
+  .sidebar { top: calc(16px + env(titlebar-area-height, 0)); height: calc(100vh - 32px - env(titlebar-area-height, 0)); }
+}
