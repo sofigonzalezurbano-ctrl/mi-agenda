@@ -398,13 +398,15 @@ function missedReportData(cols) {
     const cell = (rec, sid) => {
       if (!rec) return { st: 'none' };
       const a = (rec.absences || {})[sid];
-      return !a ? { st: 'took' } : { st: a.refused ? 'refused' : 'missed', done: !!a.done };
+      if (!a) return { st: 'took' };
+      // Already made up: its own colour, but it still counts in the missed/refused totals.
+      return { st: a.done ? 'madeup' : a.refused ? 'refused' : 'missed', was: a.refused ? 'refused' : 'missed' };
     };
     const rows = roster.map((s, i) => ({ n: i + 1, name: splitName(s.name), cells: recs.map((r) => cell(r, s.id)) }))
-      .filter((r) => r.cells.some((c) => c.st === 'missed' || c.st === 'refused'));
+      .filter((r) => r.cells.some((c) => c.was));
     const totals = cols.map((c, ci) => ({
-      missed: rows.filter((r) => r.cells[ci].st === 'missed').length,
-      refused: rows.filter((r) => r.cells[ci].st === 'refused').length,
+      missed: rows.filter((r) => r.cells[ci].was === 'missed').length,
+      refused: rows.filter((r) => r.cells[ci].was === 'refused').length,
     }));
     return { group: g, rows, totals };
   });
@@ -414,6 +416,7 @@ const RP_COLORS = {
   missed: { fill: [251, 225, 225], text: [192, 57, 43], bold: true, label: 'Missed' },
   took: { fill: [230, 244, 234], text: [79, 138, 91], bold: false, label: 'Took it' },
   refused: { fill: [253, 240, 200], text: [168, 116, 10], bold: true, label: 'Refused' },
+  madeup: { fill: [164, 221, 211], text: [10, 98, 86], bold: true, label: 'Made up' },
   none: { fill: [255, 255, 255], text: [154, 146, 136], bold: false, label: '—' },
 };
 
@@ -431,7 +434,7 @@ function missedReportPDF(title, subtitle, cols) {
   y += 18;
   // Legend
   let x = M;
-  [['missed', 'Missed'], ['took', 'Took it'], ['refused', 'Refused (was present)']].forEach(([k, label]) => {
+  [['missed', 'Missed'], ['took', 'Took it'], ['refused', 'Refused (was present)'], ['madeup', 'Made up (recovered)']].forEach(([k, label]) => {
     const c = RP_COLORS[k];
     doc.setFont('helvetica', 'bold'); doc.setFontSize(8);
     const w = doc.getTextWidth(label) + 12;
@@ -454,7 +457,7 @@ function missedReportPDF(title, subtitle, cols) {
     }
     const head = [['#', 'Student', ...cols.map((c) => `${c.title}\n${reportDate(c.date)}`)]];
     const body = sec.rows.map((r) => [String(r.n), `${r.name.last}, ${r.name.first}`,
-      ...r.cells.map((c) => RP_COLORS[c.st].label + (c.done ? '\nmade up' : ''))]);
+      ...r.cells.map((c) => RP_COLORS[c.st].label)]);
     const foot = [['', 'Total missed', ...sec.totals.map((t) => `${t.missed}${t.refused ? ` +${t.refused} refused` : ''}`)]];
     doc.autoTable({
       startY: y, head, body, foot, margin: { left: M, right: M }, theme: 'plain',
