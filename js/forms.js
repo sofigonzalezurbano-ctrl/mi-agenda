@@ -370,10 +370,12 @@ function missedReportSheet() {
       title: 'Missed evaluations',
       subtitle: `Colegio Don Bosco · 2nd Year · ${fmtMonth(todayISO())}`,
       cols: cols.filter((c) => c.date >= since).map((c) => c.key),
+      section: 'all',
     },
     fields: [
       { name: 'title', label: 'Report title', required: true, placeholder: 'e.g. Unit 1 – Missed evaluations' },
       { name: 'subtitle', label: 'Subtitle' },
+      { name: 'section', label: 'Sections', type: 'pills', options: [['all', 'Both sections'], ...schoolGroups().map((g) => [g, esc(g)])] },
       { name: 'cols', label: 'Evaluations to include (one column each)', type: 'multi', options: cols.map((c) => [c.key, `${c.title} · ${reportDate(c.date)}`]) },
       { name: 'hint', type: 'html', cls: 'small', html: 'On iPhone the share menu opens: choose <b>Save to Files</b>, WhatsApp, Mail… On the Mac it downloads.' },
     ],
@@ -382,14 +384,15 @@ function missedReportSheet() {
       if (!chosen.length) { toast('Pick at least one evaluation'); return false; }
       if (!pdfLibsLoaded()) { toast('Preparing the PDF tool… tap Create PDF again in a second'); return false; }
       // Built synchronously so the iPhone share menu still counts as a response to the tap.
-      deliverPDF(missedReportPDF(v.title, v.subtitle, chosen), v.title);
+      const only = v.section && v.section !== 'all' ? v.section : null;
+      deliverPDF(missedReportPDF(v.title, v.subtitle, chosen, only), only ? `${v.title} – ${only}` : v.title);
     },
   });
 }
 
 /** Tables for the report: per section, only students who missed/refused at least one chosen evaluation. */
-function missedReportData(cols) {
-  const groups = [...new Set(Store.data.evaluations.filter((e) => cols.some((c) => c.key === `${e.title}|${e.date}`)).map((e) => e.group))].sort();
+function missedReportData(cols, onlyGroup = null) {
+  const groups = onlyGroup ? [onlyGroup] : [...new Set(Store.data.evaluations.filter((e) => cols.some((c) => c.key === `${e.title}|${e.date}`)).map((e) => e.group))].sort();
   return groups.map((g) => {
     // Class-list numbers: students of the group ordered by surname.
     const sortKey = (s) => normName(`${splitName(s.name).last} ${s.name}`);
@@ -421,7 +424,7 @@ const RP_COLORS = {
 };
 
 /** Builds the report as a real PDF file (A4). */
-function missedReportPDF(title, subtitle, cols) {
+function missedReportPDF(title, subtitle, cols, onlyGroup = null) {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: 'pt', format: 'a4' });
   const M = 40;
@@ -444,7 +447,7 @@ function missedReportPDF(title, subtitle, cols) {
   });
   y += 22;
 
-  missedReportData(cols).forEach((sec) => {
+  missedReportData(cols, onlyGroup).forEach((sec) => {
     doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(29, 27, 25);
     if (y > 760) { doc.addPage(); y = 54; }
     doc.text(sec.group, M, y);
