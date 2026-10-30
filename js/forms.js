@@ -357,12 +357,45 @@ function loadPdfLibs() {
   }
   return pdfLibsReady;
 }
-const pdfLibsLoaded = () => !!(window.jspdf && window.jspdf.jsPDF && window.jspdf.jsPDF.API.autoTable);
+const pdfLibsLoaded = () => !!(window.jspdf && window.jspdf.jsPDF && window.jspdf.jsPDF.API.autoTable) && pdfFontsTried;
+
+/* Poppins goes inside the PDF file. If it can't be fetched, the PDF still works with a standard font. */
+const POPPINS_URL = (w) => `https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/poppins/Poppins-${w}.ttf`;
+let pdfFonts = null;
+let pdfFontsTried = false;
+async function loadPdfFonts() {
+  if (pdfFonts) return;
+  try {
+    const toB64 = async (w) => {
+      const res = await fetch(POPPINS_URL(w));
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const bytes = new Uint8Array(await res.arrayBuffer());
+      let bin = '';
+      for (let i = 0; i < bytes.length; i += 8192) bin += String.fromCharCode(...bytes.subarray(i, i + 8192));
+      return btoa(bin);
+    };
+    const [regular, bold] = await Promise.all([toB64('Regular'), toB64('Bold')]);
+    pdfFonts = { regular, bold };
+  } catch (e) {
+    console.warn('Could not load Poppins for the PDF', e);
+  }
+  pdfFontsTried = true;
+}
+/** Registers Poppins in this document and returns the font name to use. */
+function usePdfFont(doc) {
+  if (!pdfFonts) return 'helvetica';
+  doc.addFileToVFS('Poppins-Regular.ttf', pdfFonts.regular);
+  doc.addFileToVFS('Poppins-Bold.ttf', pdfFonts.bold);
+  doc.addFont('Poppins-Regular.ttf', 'Poppins', 'normal');
+  doc.addFont('Poppins-Bold.ttf', 'Poppins', 'bold');
+  return 'Poppins';
+}
 
 function missedReportSheet() {
   const cols = evalColumns();
   if (!cols.length) { toast('Add an evaluation first'); return; }
   loadPdfLibs().catch(() => toast('No internet — the PDF tool could not load'));
+  loadPdfFonts();
   const since = addDays(todayISO(), -30);
   openForm({
     title: 'Missed evaluations report', wide: true, submitLabel: 'Create PDF',
@@ -427,19 +460,20 @@ const RP_COLORS = {
 function missedReportPDF(title, subtitle, cols, onlyGroup = null) {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+  const FONT = usePdfFont(doc);
   const M = 40;
   let y = 54;
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.setTextColor(29, 27, 25);
+  doc.setFont(FONT, 'bold'); doc.setFontSize(18); doc.setTextColor(29, 27, 25);
   doc.text(title, M, y);
   y += 16;
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(107, 101, 93);
+  doc.setFont(FONT, 'normal'); doc.setFontSize(8.5); doc.setTextColor(107, 101, 93);
   doc.text(`${subtitle ? subtitle + ' · ' : ''}Only students who missed or refused at least one evaluation`, M, y);
   y += 18;
   // Legend
   let x = M;
   [['missed', 'Missed'], ['took', 'Took it'], ['refused', 'Refused (was present)'], ['madeup', 'Made up (recovered)']].forEach(([k, label]) => {
     const c = RP_COLORS[k];
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(8);
+    doc.setFont(FONT, 'bold'); doc.setFontSize(8);
     const w = doc.getTextWidth(label) + 12;
     doc.setFillColor(...c.fill); doc.roundedRect(x, y - 9, w, 14, 3, 3, 'F');
     doc.setTextColor(...c.text); doc.text(label, x + 6, y + 1);
@@ -448,12 +482,12 @@ function missedReportPDF(title, subtitle, cols, onlyGroup = null) {
   y += 22;
 
   missedReportData(cols, onlyGroup).forEach((sec) => {
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(29, 27, 25);
+    doc.setFont(FONT, 'bold'); doc.setFontSize(12); doc.setTextColor(29, 27, 25);
     if (y > 760) { doc.addPage(); y = 54; }
     doc.text(sec.group, M, y);
     y += 6;
     if (!sec.rows.length) {
-      doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(107, 101, 93);
+      doc.setFont(FONT, 'normal'); doc.setFontSize(9); doc.setTextColor(107, 101, 93);
       doc.text('Everyone took all the evaluations.', M, y + 12);
       y += 34;
       return;
@@ -464,7 +498,7 @@ function missedReportPDF(title, subtitle, cols, onlyGroup = null) {
     const foot = [['', 'Total missed', ...sec.totals.map((t) => `${t.missed}${t.refused ? ` +${t.refused} refused` : ''}`)]];
     doc.autoTable({
       startY: y, head, body, foot, margin: { left: M, right: M }, theme: 'plain',
-      styles: { font: 'helvetica', fontSize: 8.5, cellPadding: { top: 4, bottom: 4, left: 5, right: 5 }, textColor: [29, 27, 25], halign: 'center', valign: 'middle', lineColor: [236, 230, 220], lineWidth: { bottom: 0.6 } },
+      styles: { font: FONT, fontSize: 8.5, cellPadding: { top: 4, bottom: 4, left: 5, right: 5 }, textColor: [29, 27, 25], halign: 'center', valign: 'middle', lineColor: [236, 230, 220], lineWidth: { bottom: 0.6 } },
       headStyles: { fontStyle: 'bold', fontSize: 8.5, lineColor: [154, 146, 136], lineWidth: { bottom: 1.2 } },
       footStyles: { fontStyle: 'bold', lineWidth: 0 },
       columnStyles: { 0: { halign: 'left', textColor: [154, 146, 136], cellWidth: 22 }, 1: { halign: 'left', cellWidth: 150 } },
