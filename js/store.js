@@ -129,7 +129,7 @@ function pendingMakeups() {
   const out = [];
   Store.data.evaluations.forEach((ev) => Object.entries(ev.absences || {}).forEach(([sid, a]) => {
     const s = studentById(sid);
-    if (s && !a.done) out.push({ ev, student: s, makeupDate: a.makeupDate || '' });
+    if (s && !a.done) out.push({ ev, student: s, makeupDate: a.makeupDate || '', refused: !!a.refused });
   }));
   // With a date first (soonest first), then the ones still without a date.
   return out.sort((x, y) => (x.makeupDate || '9999').localeCompare(y.makeupDate || '9999') || x.ev.date.localeCompare(y.ev.date));

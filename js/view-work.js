@@ -156,7 +156,7 @@ function evaluationsTab() {
         <span class="avatar sm">${esc(initials(p.student.name))}</span>
         <div class="row-main" data-action="makeup-date" data-id="${p.ev.id}" data-student="${p.student.id}">
           <div class="row-title">${esc(p.student.name)} <span class="muted">· ${esc(studentGroup(p.student))}</span></div>
-          <div class="row-meta"><span class="chip">${esc(p.ev.title)}</span><span>Missed ${fmtDate(p.ev.date, { month: 'short', day: 'numeric' })}</span>
+          <div class="row-meta"><span class="chip">${esc(p.ev.title)}</span><span>${p.refused ? 'Refused' : 'Missed'} ${fmtDate(p.ev.date, { month: 'short', day: 'numeric' })}</span>
             <span class="${late ? 'danger' : ''}">${p.makeupDate ? `${late ? '⚠ Make-up was ' : 'Make-up: '}${relDay(p.makeupDate)}` : 'No make-up date yet'}</span></div>
         </div>
         <button class="btn btn-light btn-sm" data-action="makeup-date" data-id="${p.ev.id}" data-student="${p.student.id}">${icon('calendar')}${p.makeupDate ? 'Change' : 'Set date'}</button>
@@ -208,7 +208,7 @@ function viewDonBosco() {
     addBtn = `<button class="btn btn-dark" data-action="new-assessment">${icon('plus')}Activity</button>`;
     content = assessmentsTab();
   } else if (ui.tab === 'evaluations') {
-    addBtn = `<button class="btn btn-dark" data-action="new-evaluation">${icon('plus')}Evaluation</button>`;
+    addBtn = `<button class="btn btn-light" data-action="missed-report">${icon('download')}Missed report (PDF)</button><button class="btn btn-dark" data-action="new-evaluation">${icon('plus')}Evaluation</button>`;
     content = evaluationsTab();
   } else if (ui.tab === 'tasks') {
     addBtn = `<button class="btn btn-dark" data-action="new-task" data-job="donbosco">${icon('plus')}Task</button>`;

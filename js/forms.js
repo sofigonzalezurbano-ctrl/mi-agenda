@@ -261,7 +261,7 @@ function evaluationForm(ev) {
   const groups = schoolGroups();
   const values = ev ? { ...ev } : { date: todayISO(), kind: EVAL_KINDS[0], groups: defaultGroups(groups) };
   let absences = { ...(ev ? ev.absences : {}) };
-  const opts = [['present', 'Present'], ['absent', 'Absent']];
+  const opts = [['present', 'Present'], ['absent', 'Absent'], ['refused', 'Refused']];
   const selected = (v) => (ev ? [v.group] : v.groups);
   const makeupInput = (s) => `<label class="mk-date" data-mk="${s.id}"><span>Make-up date</span><input type="date" value="${esc((absences[s.id] && absences[s.id].makeupDate) || '')}"></label>`;
   /** Absent students currently marked in the form, with their make-up dates. */
@@ -269,16 +269,18 @@ function evaluationForm(ev) {
     const out = {};
     $$('.mark-row', form).forEach((r) => {
       const sid = r.dataset.sid;
-      if (!$(`input[name="m_${sid}"][value="absent"]`, r).checked) return;
+      const c = $(`input[name="m_${sid}"]:checked`, r);
+      if (!c || c.value === 'present') return;
       const prev = absences[sid] || {};
-      out[sid] = { ...prev, makeupDate: $('[data-mk] input', r).value || '', done: !!prev.done };
+      // "refused": was in class but didn't take it — owes it just like an absence.
+      out[sid] = { ...prev, refused: c.value === 'refused', makeupDate: $('[data-mk] input', r).value || '', done: !!prev.done };
     });
     return out;
   };
   const syncMakeupVisibility = (form) => $$('.mark-row', form).forEach((r) => {
-    const abs = $(`input[name="m_${r.dataset.sid}"][value="absent"]`, r);
+    const c = $(`input[name="m_${r.dataset.sid}"]:checked`, r);
     const box = $('[data-mk]', r);
-    if (box) box.hidden = !(abs && abs.checked);
+    if (box) box.hidden = !c || c.value === 'present';
   });
   openForm({
     title: ev ? 'Edit evaluation' : 'New evaluation', wide: true,
@@ -289,7 +291,7 @@ function evaluationForm(ev) {
       { name: 'date', label: 'Date', type: 'date', required: true, half: true },
       groupField(!!ev, groups),
       { name: 'notes', label: 'Notes', type: 'textarea', placeholder: 'Topics, value, instructions…' },
-      { name: 'list', type: 'html', cls: 'mark-box', html: '<div class="mark-head"><b>Who missed it?</b><span class="small muted">Everyone is present unless you mark them absent.</span></div><div data-marks></div>' },
+      { name: 'list', type: 'html', cls: 'mark-box', html: '<div class="mark-head"><b>Who missed it?</b><span class="small muted">Everyone took it unless you mark them absent, or refused (was present but didn’t take it).</span></div><div data-marks></div>' },
     ],
     onChange: (v, form) => {
       const box = $('[data-marks]', form);
@@ -300,7 +302,7 @@ function evaluationForm(ev) {
           const shown = new Set($$('.mark-row', form).map((r) => r.dataset.sid));
           absences = { ...Object.fromEntries(Object.entries(absences).filter(([sid]) => !shown.has(sid))), ...readAbsences(form) };
         }
-        const marks = Object.fromEntries(Object.keys(absences).map((sid) => [sid, 'absent']));
+        const marks = Object.fromEntries(Object.entries(absences).map(([sid, a]) => [sid, a.refused ? 'refused' : 'absent']));
         box.innerHTML = selected(v).length
           ? markGroupsHTML(selected(v), (g) => markListHTML(g, marks, opts, 'present', makeupInput))
           : '<p class="small muted">Pick at least one grade / section.</p>';
@@ -326,6 +328,93 @@ function evaluationForm(ev) {
     },
     onDelete: ev ? () => Store.remove('evaluations', ev.id) : null,
   });
+}
+
+/* ---- Missed evaluations report (printable / PDF) ---- */
+const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const reportDate = (iso) => { const d = fromISO(iso); return `${WEEKDAYS[d.getDay()]} ${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}`; };
+/** "Carlos Bruzual" -> { last: 'Bruzual', first: 'Carlos' } (everything after the first word is the surname). */
+const splitName = (n) => { const w = String(n).trim().split(/\s+/); return { first: w[0], last: w.slice(1).join(' ') || w[0] }; };
+const evalColumns = () => {
+  const map = new Map();
+  Store.data.evaluations.forEach((e) => { const k = `${e.title}|${e.date}`; if (!map.has(k)) map.set(k, { key: k, title: e.title, date: e.date }); });
+  return [...map.values()].sort((a, b) => a.date.localeCompare(b.date) || a.title.localeCompare(b.title));
+};
+
+function missedReportSheet() {
+  const cols = evalColumns();
+  if (!cols.length) { toast('Add an evaluation first'); return; }
+  const since = addDays(todayISO(), -30);
+  openForm({
+    title: 'Missed evaluations report', wide: true, submitLabel: 'Create PDF',
+    values: {
+      title: 'Missed evaluations',
+      subtitle: `Colegio Don Bosco · 2nd Year · ${fmtMonth(todayISO())}`,
+      cols: cols.filter((c) => c.date >= since).map((c) => c.key),
+    },
+    fields: [
+      { name: 'title', label: 'Report title', required: true, placeholder: 'e.g. Unit 1 – Missed evaluations' },
+      { name: 'subtitle', label: 'Subtitle' },
+      { name: 'cols', label: 'Evaluations to include (one column each)', type: 'multi', options: cols.map((c) => [c.key, `${c.title} · ${reportDate(c.date)}`]) },
+      { name: 'hint', type: 'html', cls: 'small', html: 'On the print screen choose <b>Save as PDF</b> (Mac) or share → <b>Save to Files</b> (iPhone).' },
+    ],
+    onSave: (v) => {
+      const chosen = cols.filter((c) => v.cols.includes(c.key));
+      if (!chosen.length) { toast('Pick at least one evaluation'); return false; }
+      printHTML(missedReportHTML(v.title, v.subtitle, chosen), v.title);
+    },
+  });
+}
+
+function missedReportHTML(title, subtitle, cols) {
+  const groups = [...new Set(Store.data.evaluations.filter((e) => cols.some((c) => c.key === `${e.title}|${e.date}`)).map((e) => e.group))].sort();
+  const sections = groups.map((g) => {
+    // Class-list numbers: students of the group ordered by surname.
+    const roster = studentsInGroup(g).slice().sort((a, b) => normName(splitName(a.name).last + ' ' + a.name).localeCompare(normName(splitName(b.name).last + ' ' + b.name)));
+    const recs = cols.map((c) => Store.data.evaluations.find((e) => e.group === g && e.title === c.title && e.date === c.date));
+    const status = (rec, sid) => {
+      if (!rec) return 'none';
+      const a = (rec.absences || {})[sid];
+      return !a ? 'took' : a.refused ? 'refused' : 'missed';
+    };
+    const rows = roster.map((s, i) => ({ s, n: i + 1, st: recs.map((r) => status(r, s.id)) }))
+      .filter((r) => r.st.some((x) => x === 'missed' || x === 'refused'));
+    if (!rows.length) return `<h2>${esc(g)}</h2><p class="rp-none">Everyone took all the evaluations. 🎉</p>`;
+    const cell = (st, rec, sid) => {
+      const done = st !== 'took' && st !== 'none' && rec.absences[sid].done;
+      const label = { took: 'Took it', missed: 'Missed', refused: 'Refused', none: '—' }[st];
+      return `<td class="rp-${st}">${label}${done ? '<small>made up</small>' : ''}</td>`;
+    };
+    const totals = recs.map((r, ci) => {
+      const m = rows.filter((x) => x.st[ci] === 'missed').length;
+      const f = rows.filter((x) => x.st[ci] === 'refused').length;
+      return `<td>${m}${f ? ` <small class="rp-ref">+${f} refused</small>` : ''}</td>`;
+    }).join('');
+    return `<h2>${esc(g)}</h2>
+      <table>
+        <thead><tr><th class="rp-num">#</th><th class="rp-name">Student</th>${cols.map((c) => `<th>${esc(c.title)}<small>${reportDate(c.date)}</small></th>`).join('')}</tr></thead>
+        <tbody>${rows.map((r) => { const nm = splitName(r.s.name); return `<tr><td class="rp-num">${r.n}</td><td class="rp-name">${esc(nm.last)}, ${esc(nm.first)}</td>${r.st.map((st, ci) => cell(st, recs[ci], r.s.id)).join('')}</tr>`; }).join('')}</tbody>
+        <tfoot><tr><td></td><td class="rp-name">Total missed</td>${totals}</tr></tfoot>
+      </table>`;
+  }).join('');
+  return `<div class="report">
+    <h1>${esc(title)}</h1>
+    <p class="rp-sub">${esc(subtitle)}${subtitle ? ' · ' : ''}Only students who missed or refused at least one evaluation</p>
+    <div class="rp-legend"><span class="rp-missed">Missed</span><span class="rp-took">Took it</span><span class="rp-refused">Refused (was present)</span></div>
+    ${sections}
+  </div>`;
+}
+
+/** Prints only the given HTML (the browser's print dialog can save it as a PDF). */
+function printHTML(html, title) {
+  let root = document.getElementById('print-root');
+  if (!root) { root = document.createElement('div'); root.id = 'print-root'; document.body.appendChild(root); }
+  root.innerHTML = html;
+  const oldTitle = document.title;
+  document.title = title; // becomes the PDF file name
+  const cleanup = () => { root.innerHTML = ''; document.title = oldTitle; window.removeEventListener('afterprint', cleanup); };
+  window.addEventListener('afterprint', cleanup);
+  setTimeout(() => window.print(), 150);
 }
 
 function makeupDateForm(evalId, sid) {

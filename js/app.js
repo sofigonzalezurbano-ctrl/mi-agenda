@@ -158,6 +158,7 @@ const ACTIONS = {
   'edit-assessment': (el) => assessmentForm(Store.get('assessments', ds(el).id)),
   'as-skill': (el) => { App.ui.db.asSkill = ds(el).skill; },
   'new-evaluation': () => evaluationForm(),
+  'missed-report': () => missedReportSheet(),
   'edit-evaluation': (el) => evaluationForm(Store.get('evaluations', ds(el).id)),
   'makeup-date': (el) => makeupDateForm(ds(el).id, ds(el).student),
   'makeup-done': (el) => { setMakeup(ds(el).id, ds(el).student, { done: true, doneAt: Date.now() }); toast('Evaluation made up ✓'); },
