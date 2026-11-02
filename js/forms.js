@@ -436,7 +436,7 @@ function missedReportData(cols, onlyGroup = null) {
       const a = (rec.absences || {})[sid];
       if (!a) return { st: 'took' };
       // Already made up: its own colour, but it still counts in the missed/refused totals.
-      return { st: a.done ? 'madeup' : a.refused ? 'refused' : 'missed', was: a.refused ? 'refused' : 'missed' };
+      return { st: a.done ? 'madeup' : a.refused ? 'refused' : 'missed', was: a.refused ? 'refused' : 'missed', makeup: a.makeupDate || '' };
     };
     const rows = roster.map((s, i) => ({ n: i + 1, name: splitName(s.name), cells: recs.map((r) => cell(r, s.id)) }))
       .filter((r) => r.cells.some((c) => c.was));
@@ -494,7 +494,12 @@ function missedReportPDF(title, subtitle, cols, onlyGroup = null) {
     }
     const head = [['#', 'Student', ...cols.map((c) => `${c.title}\n${reportDate(c.date)}`)]];
     const body = sec.rows.map((r) => [String(r.n), `${r.name.last}, ${r.name.first}`,
-      ...r.cells.map((c) => RP_COLORS[c.st].label)]);
+      ...r.cells.map((c) => {
+        const label = RP_COLORS[c.st].label;
+        if (c.st === 'missed' || c.st === 'refused') return `${label}\n${c.makeup ? `Make-up ${reportDate(c.makeup)}` : 'No make-up date'}`;
+        if (c.st === 'madeup' && c.makeup) return `${label}\n${reportDate(c.makeup)}`;
+        return label;
+      })]);
     const foot = [['', 'Total missed', ...sec.totals.map((t) => `${t.missed}${t.refused ? ` +${t.refused} refused` : ''}`)]];
     doc.autoTable({
       startY: y, head, body, foot, margin: { left: M, right: M }, theme: 'plain',
@@ -513,7 +518,22 @@ function missedReportPDF(title, subtitle, cols, onlyGroup = null) {
           d.cell.styles.fontStyle = c.bold ? 'bold' : 'normal';
           d.cell.styles.lineColor = [255, 255, 255];
           d.cell.styles.lineWidth = { bottom: 1.5 };
+          const lines = String(d.cell.raw).split('\n');
+          if (lines.length > 1) {
+            d.cell.subText = lines.slice(1).join(' ');
+            d.cell.text = [lines[0]];
+            d.cell.styles.valign = 'top';
+            d.cell.styles.minCellHeight = 27;
+            d.cell.styles.cellPadding = { top: 4, bottom: 4, left: 3, right: 3 };
+          }
         }
+      },
+      // Second line (make-up date) is drawn smaller, right under the status.
+      didDrawCell: (d) => {
+        if (!d.cell.subText) return;
+        const c = RP_COLORS[sec.rows[d.row.index].cells[d.column.index - 2].st];
+        doc.setFont(FONT, 'normal'); doc.setFontSize(6.6); doc.setTextColor(...c.text);
+        doc.text(d.cell.subText, d.cell.x + d.cell.width / 2, d.cell.y + 21, { align: 'center' });
       },
     });
     y = doc.lastAutoTable.finalY + 26;
