@@ -580,28 +580,31 @@ function hoursProgress(h) {
 const hoursStoreLabel = (h) => h.location || (HOURS_STORES.find((s) => s[0] === h.store) || [, 'Store'])[1];
 
 /** "Mon–Fri 8am–9pm · Sat 9am–10pm · Sun Closed" (days left blank are unchanged and omitted). */
-function hoursSummary(h) {
+/** One line per date (special hours) or per run of days (store hours), e.g.
+ *  "November 26: closes at 3:30 pm", "December 25: closed", "Mon–Fri: 8 am – 9 pm". */
+function hoursLines(h) {
+  const t = (x) => fmtTime(x).replace(/(am|pm)$/, ' $1');
   const fmtSlot = (s) => {
     if (!s) return '';
-    if (s.closed) return 'Closed';
-    if (s.open && s.close) return `${fmtTime(s.open)}–${fmtTime(s.close)}`;
-    if (s.close) return `Closes ${fmtTime(s.close)}`; // e.g. "close early at 3:30pm"
-    if (s.open) return `Opens ${fmtTime(s.open)}`;
+    if (s.closed) return 'closed';
+    if (s.open && s.close) return `${t(s.open)} – ${t(s.close)}`;
+    if (s.close) return `closes at ${t(s.close)}`;
+    if (s.open) return `opens at ${t(s.open)}`;
     return '';
   };
   if (h.type === 'special') {
-    return (h.dates || []).filter((d) => d.date).map((d) => `${fmtDate(d.date, { month: 'short', day: 'numeric' })}: ${fmtSlot(d) || '—'}`).join(' · ');
+    return (h.dates || []).filter((d) => d.date && fmtSlot(d))
+      .map((d) => `${fmtDate(d.date, { month: 'long', day: 'numeric' })}: ${fmtSlot(d)}`);
   }
-  const parts = [];
-  let run = null;
+  const runs = [];
   HOURS_DAY_ORDER.forEach((day) => {
     const txt = fmtSlot((h.week || {})[day]);
-    if (run && run.txt === txt) run.to = day;
-    else { if (run) parts.push(run); run = { from: day, to: day, txt }; }
+    const last = runs[runs.length - 1];
+    if (last && last.txt === txt) last.to = day; else runs.push({ from: day, to: day, txt });
   });
-  if (run) parts.push(run);
-  return parts.filter((r) => r.txt).map((r) => `${WEEKDAYS[r.from]}${r.to !== r.from ? '–' + WEEKDAYS[r.to] : ''} ${r.txt}`).join(' · ');
+  return runs.filter((r) => r.txt).map((r) => `${WEEKDAYS[r.from]}${r.to !== r.from ? '–' + WEEKDAYS[r.to] : ''}: ${r.txt}`);
 }
+const hoursSummary = (h) => hoursLines(h).join(' · ');
 
 function removeHoursChange(id) {
   Store.data.hoursFiles = Store.data.hoursFiles.filter((f) => f.changeId !== id);

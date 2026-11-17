@@ -331,7 +331,7 @@ function hoursTab() {
         <td><span class="chip ${h.type === 'special' ? 'p-medium' : 'outline'}">${h.type === 'special' ? 'Special' : 'Store'}</span></td>
         <td>${h.received ? fmtDate(h.received, { month: 'short', day: 'numeric' }) : '—'}</td>
         <td>${h.effective ? fmtDate(h.effective, { month: 'short', day: 'numeric' }) : '—'}</td>
-        <td class="sh-hours" data-action="edit-hours" data-id="${h.id}">${esc(hoursSummary(h)) || '<span class="muted">—</span>'}${h.notes ? `<small>${esc(h.notes)}</small>` : ''}</td>
+        <td class="sh-hours" data-action="edit-hours" data-id="${h.id}">${hoursLines(h).map((l) => `<div>${esc(l)}</div>`).join('') || '<span class="muted">—</span>'}</td>
         ${cols.map(([k, l]) => allowed.includes(k)
           ? `<td class="sh-p"><button class="sh-check ${(h.done || {})[k] ? 'on' : ''}" data-action="hours-platform" data-id="${h.id}" data-p="${k}" aria-pressed="${!!(h.done || {})[k]}" aria-label="${esc(l)} updated">${icon('check')}</button></td>`
           : '<td class="sh-p sh-na">n/a</td>').join('')}

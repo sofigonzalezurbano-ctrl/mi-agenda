@@ -500,6 +500,7 @@ details[open].done-list summary::after { content: "–"; }
 .sheet td { padding: 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
 .sheet th.sh-p, .sheet td.sh-p { text-align: center; width: 82px; }
 .sheet .sh-hours { min-width: 220px; cursor: pointer; }
+.sheet .sh-hours div { white-space: nowrap; line-height: 1.55; }
 .sheet .sh-hours small { display: block; color: var(--ink-3); font-size: 11.5px; margin-top: 2px; }
 .sheet .sh-na { color: var(--ink-3); font-size: 11px; background: var(--surface-2); }
 .sheet tr.sh-complete td { opacity: .6; }
