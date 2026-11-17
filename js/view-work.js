@@ -321,14 +321,14 @@ function hoursTab() {
     <span class="chip ${pending ? 'p-high' : 'outline'}">${pending} pending</span>
   </div>
   <section class="card">${list.length ? `<div class="sheet-wrap"><table class="sheet">
-    <thead><tr><th>Store</th><th>Type</th><th>Received</th><th>Effective</th><th class="sh-hours">New hours</th>
+    <thead><tr><th>Location</th><th>Type</th><th>Received</th><th>Effective</th><th class="sh-hours">New hours</th>
       ${cols.map(([, l]) => `<th class="sh-p">${esc(l)}</th>`).join('')}<th>Done</th><th></th></tr></thead>
     <tbody>${list.map((h) => {
       const pr = hoursProgress(h);
       const allowed = platformsFor(h.type);
       const nFiles = (h.fileIds || []).length;
       return `<tr class="${pr.complete ? 'sh-complete' : ''}">
-        <td><button class="sh-link j-${h.store}" data-action="edit-hours" data-id="${h.id}"><span class="nav-dot"></span>${esc(storeName(h.store))}</button>${h.location ? `<small class="sh-loc">${esc(h.location)}</small>` : ''}</td>
+        <td><button class="sh-link j-${h.store}" data-action="edit-hours" data-id="${h.id}"><span class="nav-dot"></span>${esc(hoursStoreLabel(h))}</button></td>
         <td><span class="chip ${h.type === 'special' ? 'p-medium' : 'outline'}">${h.type === 'special' ? 'Special' : 'Store'}</span></td>
         <td>${h.received ? fmtDate(h.received, { month: 'short', day: 'numeric' }) : '—'}</td>
         <td>${h.effective ? fmtDate(h.effective, { month: 'short', day: 'numeric' }) : '—'}</td>

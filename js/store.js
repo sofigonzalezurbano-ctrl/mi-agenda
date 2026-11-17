@@ -576,8 +576,8 @@ function hoursProgress(h) {
   return { done, total: list.length, complete: done === list.length };
 }
 
-/** "Movita Juice Bar · La Habra" */
-const hoursStoreLabel = (h) => `${(HOURS_STORES.find((s) => s[0] === h.store) || [, 'Store'])[1]}${h.location ? ' · ' + h.location : ''}`;
+/** The store's own name (e.g. "La Habra"); the restaurant name only when no location was given. */
+const hoursStoreLabel = (h) => h.location || (HOURS_STORES.find((s) => s[0] === h.store) || [, 'Store'])[1];
 
 /** "Mon–Fri 8am–9pm · Sat 9am–10pm · Sun Closed" (days left blank are unchanged and omitted). */
 function hoursSummary(h) {
