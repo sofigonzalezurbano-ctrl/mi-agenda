@@ -22,6 +22,8 @@ function emptyData() {
     schoolSchedule: [], // Don Bosco timetable: {id, day (1=Mon…5=Fri), start, end, group, subject, from}
     schoolLogs: {},     // "slotId|date" -> {status: given|not_given|absent, substitute, notes}
     substitutions: [],  // classes I covered for someone else: {id, date, start, end, group, teacher, notes}
+    hoursChanges: [],   // 4 Eleven: {id, store, type: store|special, received, effective, week{0..6: {open, close, closed}}, dates[{date, open, close, closed}], notes, done{platform: ts}, fileIds[]}
+    hoursFiles: [],     // attachments for hours changes: {id, changeId, name, mime, data (data URL), size}
     reminders: [],      // {id, title, date, time, job, notes, leadDays (show on Today this many days before), done, doneAt}
     debts: [],          // {id, creditor, description, amount, currency, installment, repeat: once|monthly, dueDate, notes}
     rates: {},          // date -> Bs per USD (BCV history)
@@ -499,6 +501,14 @@ function agendaFor(iso) {
     kind: 'sub', id: x.id, date: iso, title: `Substitution · ${x.group || 'class'}`, job: 'donbosco', time: x.start, end: x.end,
     done: iso <= todayISO(), sub: x.teacher ? `Covered for ${x.teacher}` : 'Substitution',
   }));
+  if (iso === todayISO()) d.hoursChanges.filter((h) => !hoursProgress(h).complete && (h.received || '') <= iso).forEach((h) => {
+    const pr = hoursProgress(h);
+    items.push({
+      kind: 'hours', id: h.id, date: iso, title: `Update hours — ${(HOURS_STORES.find((s) => s[0] === h.store) || [, 'Store'])[1]}`,
+      job: h.store === 'foureleven' ? 'foureleven' : h.store, time: null, done: false,
+      sub: `${h.type === 'special' ? 'Special' : 'Store'} hours · ${pr.done}/${pr.total} platforms${h.effective ? ' · effective ' + fmtDate(h.effective, { month: 'short', day: 'numeric' }) : ''}`,
+    });
+  });
   d.reminders.filter((r) => r.date === iso).forEach((r) => items.push({
     kind: 'reminder', id: r.id, date: iso, title: r.title, job: r.job || 'personal', time: r.time || null, done: !!r.done,
     sub: r.notes || '',
@@ -551,6 +561,41 @@ function toggleAgendaItem(kind, id, date) {
     const n = Store.get('needs', id);
     Store.update('needs', id, { done: !n.done });
   }
+}
+
+/* ---- 4 Eleven: restaurant hours changes ---- */
+const HOURS_STORES = [['movita', 'Movita Juice Bar'], ['alas', 'Alas Kitchen'], ['casita', 'La Casita Mexicana'], ['foureleven', 'All 3 restaurants']];
+const HOURS_PLATFORMS = { doordash: 'DoorDash', ubereats: 'Uber Eats', yelp: 'Yelp', applemaps: 'Apple Maps', google: 'Google My Business' };
+/** Store hours only go on listing sites; special hours also go on the delivery apps. */
+const platformsFor = (type) => (type === 'special' ? Object.keys(HOURS_PLATFORMS) : ['yelp', 'applemaps', 'google']);
+const HOURS_DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
+
+function hoursProgress(h) {
+  const list = platformsFor(h.type);
+  const done = list.filter((p) => (h.done || {})[p]).length;
+  return { done, total: list.length, complete: done === list.length };
+}
+
+/** "Mon–Fri 8am–9pm · Sat 9am–10pm · Sun Closed" (days left blank are unchanged and omitted). */
+function hoursSummary(h) {
+  const fmtSlot = (s) => (!s ? '' : s.closed ? 'Closed' : s.open || s.close ? `${fmtTime(s.open) || '?'}–${fmtTime(s.close) || '?'}` : '');
+  if (h.type === 'special') {
+    return (h.dates || []).filter((d) => d.date).map((d) => `${fmtDate(d.date, { month: 'short', day: 'numeric' })}: ${fmtSlot(d) || '—'}`).join(' · ');
+  }
+  const parts = [];
+  let run = null;
+  HOURS_DAY_ORDER.forEach((day) => {
+    const txt = fmtSlot((h.week || {})[day]);
+    if (run && run.txt === txt) run.to = day;
+    else { if (run) parts.push(run); run = { from: day, to: day, txt }; }
+  });
+  if (run) parts.push(run);
+  return parts.filter((r) => r.txt).map((r) => `${WEEKDAYS[r.from]}${r.to !== r.from ? '–' + WEEKDAYS[r.to] : ''} ${r.txt}`).join(' · ');
+}
+
+function removeHoursChange(id) {
+  Store.data.hoursFiles = Store.data.hoursFiles.filter((f) => f.changeId !== id);
+  Store.remove('hoursChanges', id);
 }
 
 /* ---- Reminders (shown on Today ahead of time) ---- */

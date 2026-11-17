@@ -1038,6 +1038,170 @@ function exchangeForm(tx) {
   hint();
 }
 
+/* ---- 4 Eleven: hours changes ---- */
+const MAX_FILE_BYTES = 700 * 1024;
+
+/** Photo -> compressed JPEG data URL (keeps the synced record small). PDF -> data URL if small enough. */
+function readHoursFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('read'));
+    if (file.type === 'application/pdf') {
+      if (file.size > MAX_FILE_BYTES) { reject(new Error('That PDF is too big (max 700 KB). Send a screenshot of it instead.')); return; }
+      reader.onload = () => resolve({ name: file.name, mime: file.type, data: reader.result, size: file.size });
+      reader.readAsDataURL(file);
+      return;
+    }
+    if (!file.type.startsWith('image/')) { reject(new Error('Use a photo, screenshot or PDF.')); return; }
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, 1600 / Math.max(img.width, img.height));
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.width * scale); c.height = Math.round(img.height * scale);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        let q = 0.75, data = c.toDataURL('image/jpeg', q);
+        while (data.length * 0.75 > MAX_FILE_BYTES && q > 0.35) { q -= 0.1; data = c.toDataURL('image/jpeg', q); }
+        resolve({ name: file.name.replace(/\.\w+$/, '') + '.jpg', mime: 'image/jpeg', data, size: Math.round(data.length * 0.75) });
+      };
+      img.onerror = () => reject(new Error('That image could not be opened.'));
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function hoursGridHTML(type, h) {
+  const slot = (prefix, s = {}) => `
+    <input type="time" data-h="${prefix}-open" value="${esc(s.open || '')}" aria-label="Opens">
+    <input type="time" data-h="${prefix}-close" value="${esc(s.close || '')}" aria-label="Closes">
+    <label class="hg-closed"><input type="checkbox" data-h="${prefix}-closed" ${s.closed ? 'checked' : ''}> Closed</label>`;
+  if (type === 'special') {
+    const dates = (h.dates && h.dates.length ? h.dates : [{ date: h.effective || '' }]);
+    return `<div class="hg-head"><span>Date</span><span>Opens</span><span>Closes</span><span></span></div>
+      ${dates.map((d, i) => `<div class="hg-row" data-row="${i}"><input type="date" data-h="d${i}-date" value="${esc(d.date || '')}" aria-label="Date">${slot('d' + i, d)}</div>`).join('')}
+      <button type="button" class="btn btn-light btn-sm" data-add-date>${icon('plus')}Add another date</button>`;
+  }
+  return `<div class="hg-head"><span>Day</span><span>Opens</span><span>Closes</span><span></span></div>
+    ${HOURS_DAY_ORDER.map((day) => `<div class="hg-row"><b>${WEEKDAYS[day]}</b>${slot('w' + day, (h.week || {})[day])}</div>`).join('')}
+    <p class="small muted" style="margin:6px 0 0">Leave a day empty if its hours don't change.</p>`;
+}
+
+function readHoursGrid(form, type) {
+  const val = (k) => { const el = form.querySelector(`[data-h="${k}"]`); return !el ? '' : el.type === 'checkbox' ? el.checked : el.value; };
+  const slot = (p) => ({ open: val(`${p}-open`), close: val(`${p}-close`), closed: !!val(`${p}-closed`) });
+  if (type === 'special') {
+    return { dates: $$('.hg-row', form).map((r) => ({ date: val(`d${r.dataset.row}-date`), ...slot('d' + r.dataset.row) })).filter((d) => d.date), week: {} };
+  }
+  const week = {};
+  HOURS_DAY_ORDER.forEach((day) => { const s = slot('w' + day); if (s.open || s.close || s.closed) week[day] = s; });
+  return { week, dates: [] };
+}
+
+function hoursForm(h, defaults = {}) {
+  const values = h ? { ...h } : { store: 'movita', type: 'store', received: todayISO(), effective: '', ...defaults };
+  let draft = { week: values.week || {}, dates: values.dates || [] }; // keeps the grid when switching type
+  let fileIds = [...(values.fileIds || [])];
+  const pending = []; // files picked in this form, saved on Save
+  const filesHTML = () => [...fileIds.map((id) => Store.get('hoursFiles', id)).filter(Boolean), ...pending]
+    .map((f, i) => `<span class="chip outline">${icon(f.mime === 'application/pdf' ? 'note' : 'star', 'xs')}${esc(f.name)}${f.id ? '' : ' (new)'}</span>`).join('') || '<span class="small muted">No file yet</span>';
+  openForm({
+    title: h ? 'Hours change' : 'New hours change', wide: true,
+    values,
+    fields: [
+      { name: 'store', label: 'Store', type: 'select', options: HOURS_STORES, half: true },
+      { name: 'type', label: 'Type', type: 'pills', options: [['store', 'Store hours'], ['special', 'Special hours']], half: true },
+      { name: 'received', label: 'Received on', type: 'date', half: true, required: true },
+      { name: 'effective', label: 'Effective from', type: 'date', half: true },
+      { name: 'grid', type: 'html', cls: 'hours-grid-box', html: '<b>New hours</b><div data-grid></div>' },
+      { name: 'files', type: 'html', cls: 'hours-files-box', html: `<b>Photo / screenshot / PDF</b>
+        <div class="chips" data-files style="margin:8px 0"></div>
+        <label class="btn btn-light btn-sm" style="cursor:pointer">${icon('upload')}Add file<input type="file" accept="image/*,application/pdf" multiple hidden data-file-input></label>` },
+      { name: 'notes', label: 'Notes', type: 'textarea', placeholder: 'Who sent it, reason (holiday, staff…)' },
+    ],
+    onChange: (v, form) => {
+      const box = $('[data-grid]', form);
+      if (box.dataset.type === v.type) return;
+      if (box.dataset.type) draft = { ...draft, ...readHoursGrid(form, box.dataset.type) };
+      box.innerHTML = hoursGridHTML(v.type, { ...draft, effective: v.effective });
+      box.dataset.type = v.type;
+    },
+    onSave: (v) => {
+      const form = $('#modal-root form');
+      const grid = readHoursGrid(form, v.type);
+      pending.forEach((f) => { const rec = Store.add('hoursFiles', { ...f, changeId: '' }); fileIds.push(rec.id); });
+      const rec = { store: v.store, type: v.type, received: v.received, effective: v.effective, notes: v.notes, ...grid, fileIds };
+      let id;
+      if (h) { Store.update('hoursChanges', h.id, rec); id = h.id; }
+      else id = Store.add('hoursChanges', { ...rec, done: {} }).id;
+      fileIds.forEach((fid) => { const f = Store.get('hoursFiles', fid); if (f && f.changeId !== id) f.changeId = id; });
+      Store.save();
+      toast(h ? 'Hours change updated' : 'Hours change saved');
+    },
+    onDelete: h ? () => removeHoursChange(h.id) : null,
+    deleteConfirm: 'Delete this hours change (and its files)?',
+  });
+  const form = $('#modal-root form');
+  $('[data-files]', form).innerHTML = filesHTML();
+  $('[data-file-input]', form).addEventListener('change', async (e) => {
+    for (const file of e.target.files) {
+      try { pending.push(await readHoursFile(file)); } catch (err) { toast(err.message); }
+    }
+    $('[data-files]', form).innerHTML = filesHTML();
+    e.target.value = '';
+  });
+  form.addEventListener('click', (e) => {
+    if (!e.target.closest('[data-add-date]')) return;
+    const type = $('[data-grid]', form).dataset.type;
+    draft = { ...draft, ...readHoursGrid(form, type) };
+    draft.dates = [...draft.dates, { date: '' }];
+    $('[data-grid]', form).innerHTML = hoursGridHTML(type, draft);
+  });
+}
+
+function hoursFilesSheet(id) {
+  const h = Store.get('hoursChanges', id);
+  const files = (h.fileIds || []).map((fid) => Store.get('hoursFiles', fid)).filter(Boolean);
+  openSheet('Files', files.map((f) => f.mime === 'application/pdf'
+    ? `<p><a class="btn btn-light btn-sm" href="${URL.createObjectURL(dataURLtoBlob(f.data))}" target="_blank" rel="noopener" download="${esc(f.name)}">${icon('note')}Open ${esc(f.name)}</a></p>`
+    : `<img class="hours-img" src="${f.data}" alt="${esc(f.name)}">`).join('') || emptyState('No files attached.', 'note'), { wide: true });
+}
+function dataURLtoBlob(url) {
+  const [head, b64] = url.split(',');
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type: head.slice(5).split(';')[0] });
+}
+
+/** Adds hours changes from the text Claude prepares out of a photo/screenshot. */
+function pasteHoursSheet() {
+  openSheet('Paste from Claude', `
+    <p class="small muted" style="margin:-6px 0 12px">Send Claude the photo or screenshot of the new hours. Claude replies with a block of text — copy it all and paste it here.</p>
+    <textarea id="hours-paste" class="paste-box" rows="10" placeholder='{"store":"movita","type":"store",…}'></textarea>
+    <div class="form-actions" style="margin-top:12px"><span class="spacer"></span><button class="btn btn-dark" data-action="hours-paste-save">Add</button></div>`, { wide: true });
+}
+function importHoursText(text) {
+  let data = JSON.parse(text.trim().replace(/^```(json)?|```$/g, ''));
+  if (!Array.isArray(data)) data = [data];
+  const dayIdx = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
+  const slot = (v) => {
+    if (!v || /^closed$/i.test(String(v).trim())) return { closed: true, open: '', close: '' };
+    const [open, close] = String(v).split('-').map((x) => x.trim());
+    return { open, close, closed: false };
+  };
+  return data.map((d) => {
+    if (!HOURS_STORES.some((s) => s[0] === d.store)) throw new Error(`Unknown store "${d.store}"`);
+    const week = {};
+    Object.entries(d.week || {}).forEach(([k, v]) => { const i = dayIdx[k.slice(0, 3).toLowerCase()]; if (i !== undefined) week[i] = slot(v); });
+    const dates = (d.dates || []).map((x) => ({ date: x.date, ...slot(x.hours) }));
+    return Store.add('hoursChanges', {
+      store: d.store, type: d.type === 'special' ? 'special' : 'store', received: d.received || todayISO(),
+      effective: d.effective || '', notes: d.notes || '', week, dates, done: {}, fileIds: [],
+    });
+  }).length;
+}
+
 function reminderForm(r, defaults = {}) {
   openForm({
     title: r ? 'Edit reminder' : 'New reminder',

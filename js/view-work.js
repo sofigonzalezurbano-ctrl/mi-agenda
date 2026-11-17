@@ -303,6 +303,47 @@ function incidentsTab() {
 }
 
 /* ============ 4 Eleven Media ============ */
+/* Hours changes spreadsheet */
+function hoursTab() {
+  const ui = App.ui.fe;
+  const storeName = (k) => (HOURS_STORES.find((s) => s[0] === k) || [, k])[1];
+  const list = Store.data.hoursChanges
+    .filter((h) => ui.hStore === 'all' || h.store === ui.hStore || (h.store === 'foureleven' && RESTAURANTS.includes(ui.hStore)))
+    .sort((a, b) => Number(hoursProgress(a).complete) - Number(hoursProgress(b).complete) || (b.received || '').localeCompare(a.received || ''));
+  const pending = Store.data.hoursChanges.filter((h) => !hoursProgress(h).complete).length;
+  const cols = Object.entries(HOURS_PLATFORMS);
+  return `
+  <div class="tabs-row">
+    <div class="chips">
+      <button class="chip-btn ${ui.hStore === 'all' ? 'active' : ''}" data-action="hours-store" data-store="all">All stores</button>
+      ${HOURS_STORES.slice(0, 3).map(([k, l]) => `<button class="chip-btn ${ui.hStore === k ? 'active' : ''}" data-action="hours-store" data-store="${k}"><span class="nav-dot j-${k}"></span>${esc(l)}</button>`).join('')}
+    </div>
+    <span class="chip ${pending ? 'p-high' : 'outline'}">${pending} pending</span>
+  </div>
+  <section class="card">${list.length ? `<div class="sheet-wrap"><table class="sheet">
+    <thead><tr><th>Store</th><th>Type</th><th>Received</th><th>Effective</th><th class="sh-hours">New hours</th>
+      ${cols.map(([, l]) => `<th class="sh-p">${esc(l)}</th>`).join('')}<th>Done</th><th></th></tr></thead>
+    <tbody>${list.map((h) => {
+      const pr = hoursProgress(h);
+      const allowed = platformsFor(h.type);
+      const nFiles = (h.fileIds || []).length;
+      return `<tr class="${pr.complete ? 'sh-complete' : ''}">
+        <td><button class="sh-link j-${h.store}" data-action="edit-hours" data-id="${h.id}"><span class="nav-dot"></span>${esc(storeName(h.store))}</button></td>
+        <td><span class="chip ${h.type === 'special' ? 'p-medium' : 'outline'}">${h.type === 'special' ? 'Special' : 'Store'}</span></td>
+        <td>${h.received ? fmtDate(h.received, { month: 'short', day: 'numeric' }) : '—'}</td>
+        <td>${h.effective ? fmtDate(h.effective, { month: 'short', day: 'numeric' }) : '—'}</td>
+        <td class="sh-hours" data-action="edit-hours" data-id="${h.id}">${esc(hoursSummary(h)) || '<span class="muted">—</span>'}${h.notes ? `<small>${esc(h.notes)}</small>` : ''}</td>
+        ${cols.map(([k, l]) => allowed.includes(k)
+          ? `<td class="sh-p"><button class="sh-check ${(h.done || {})[k] ? 'on' : ''}" data-action="hours-platform" data-id="${h.id}" data-p="${k}" aria-pressed="${!!(h.done || {})[k]}" aria-label="${esc(l)} updated">${icon('check')}</button></td>`
+          : '<td class="sh-p sh-na">n/a</td>').join('')}
+        <td><span class="sh-prog ${pr.complete ? 'ok' : ''}">${pr.done}/${pr.total}</span></td>
+        <td>${nFiles ? `<button class="icon-btn sm ghost" data-action="hours-files" data-id="${h.id}" aria-label="See files">${icon('note')}<small>${nFiles}</small></button>` : ''}</td>
+      </tr>`;
+    }).join('')}</tbody></table></div>`
+    : emptyState('Log every hours change a restaurant sends you and tick each platform as you update it.', 'clock')}
+  </section>`;
+}
+
 function viewFourEleven() {
   const rest = App.ui.fe.rest;
   const all = Store.data.tasks.filter((t) => FE_JOBS.includes(t.job));
@@ -313,12 +354,27 @@ function viewFourEleven() {
     : all.filter((t) => t.job === rest);
   const today = todayISO();
   const sharedPending = all.filter((t) => t.job === 'foureleven' && taskIsPending(t)).length;
+  const feTabs = `<div class="tabs-row">${tabSeg(App.ui.fe.tab, [['tasks', 'Tasks'], ['hours', 'Hours changes']], 'fe-tab')}</div>`;
+  if (App.ui.fe.tab === 'hours') {
+    return `
+  ${workSwitcher('foureleven')}
+  <header class="page-head">
+    <div><p class="eyebrow">Executive Assistant</p><h1>4 Eleven Media</h1></div>
+    <div class="head-actions">
+      <button class="btn btn-light" data-action="hours-paste">${icon('sparkle')}Paste from Claude</button>
+      <button class="btn btn-dark" data-action="new-hours">${icon('plus')}Hours change</button>
+    </div>
+  </header>
+  ${feTabs}
+  ${hoursTab()}`;
+  }
   return `
   ${workSwitcher('foureleven')}
   <header class="page-head">
     <div><p class="eyebrow">Executive Assistant</p><h1>4 Eleven Media</h1></div>
     <div class="head-actions"><button class="btn btn-dark" data-action="new-task" data-job="${rest === 'all' ? 'agency' : rest}" data-jobs="restaurants">${icon('plus')}Task</button></div>
   </header>
+  ${feTabs}
   <div class="grid fe-grid" style="margin-bottom:18px">
     ${FE_JOBS.map((r) => {
       const pend = all.filter((t) => t.job === r && taskIsPending(t));

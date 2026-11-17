@@ -18,7 +18,7 @@ const App = {
   ui: {
     cal: { mode: 'month', cursor: todayISO() },
     db: { tab: 'schedule', group: 'all', q: '', incStatus: 'open', incType: 'all', week: startOfWeek(todayISO()), asSkill: 'all', asGroup: 'all', evGroup: 'all', lastGroup: '' },
-    fe: { rest: 'all' },
+    fe: { rest: 'all', tab: 'tasks', hStore: 'all' },
     on: { tab: 'schedule', week: startOfWeek(todayISO()) },
     fin: { month: monthKey(todayISO()), type: 'all' },
   },
@@ -113,6 +113,7 @@ const ACTIONS = {
   'toggle-task': (el) => { toggleAgendaItem('task', ds(el).id); },
   'toggle-item': (el) => {
     const d = ds(el);
+    if (d.kind === 'hours') { hoursForm(Store.get('hoursChanges', d.id)); return; }
     if (d.kind === 'debt') { if (el.getAttribute('aria-pressed') === 'true') toast('Already paid — see Finances'); else payDebtForm(d.id); return; }
     toggleAgendaItem(d.kind, d.id, d.date);
   },
@@ -126,6 +127,7 @@ const ACTIONS = {
     else if (kind === 'school') schoolLogForm(id, date);
     else if (kind === 'sub') substitutionForm(Store.get('substitutions', id));
     else if (kind === 'reminder') reminderForm(Store.get('reminders', id));
+    else if (kind === 'hours') hoursForm(Store.get('hoursChanges', id));
     else if (kind === 'makeup') evaluationForm(Store.get('evaluations', id.split('~')[0]));
   },
   /* quick-add shortcuts */
@@ -182,6 +184,27 @@ const ACTIONS = {
 
   /* 4 Eleven */
   'fe-rest': (el) => { App.ui.fe.rest = ds(el).rest; },
+  'fe-tab': (el) => { App.ui.fe.tab = ds(el).tab; },
+  'hours-store': (el) => { App.ui.fe.hStore = ds(el).store; },
+  'new-hours': () => hoursForm(),
+  'edit-hours': (el) => hoursForm(Store.get('hoursChanges', ds(el).id)),
+  'hours-files': (el) => hoursFilesSheet(ds(el).id),
+  'hours-platform': (el) => {
+    const h = Store.get('hoursChanges', ds(el).id);
+    const done = { ...(h.done || {}) };
+    if (done[ds(el).p]) delete done[ds(el).p]; else done[ds(el).p] = Date.now();
+    Store.update('hoursChanges', h.id, { done });
+    if (hoursProgress(h).complete) toast('All platforms updated ✓');
+  },
+  'hours-paste': () => pasteHoursSheet(),
+  'hours-paste-save': () => {
+    const text = $('#hours-paste').value;
+    if (!text.trim()) { toast('Paste the text from Claude first'); return; }
+    try {
+      const n = importHoursText(text);
+      closeModal(); App.ui.fe.tab = 'hours'; toast(`${n} hours change${n > 1 ? 's' : ''} added`);
+    } catch (e) { toast(e.message.startsWith('Unknown') ? e.message : 'That text doesn’t look right — copy Claude’s whole block'); }
+  },
 
   /* Online */
   'on-tab': (el) => { App.ui.on.tab = ds(el).tab; },
