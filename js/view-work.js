@@ -306,7 +306,6 @@ function incidentsTab() {
 /* Hours changes spreadsheet */
 function hoursTab() {
   const ui = App.ui.fe;
-  const storeName = (k) => (HOURS_STORES.find((s) => s[0] === k) || [, k])[1];
   const list = Store.data.hoursChanges
     .filter((h) => ui.hStore === 'all' || h.store === ui.hStore || (h.store === 'foureleven' && RESTAURANTS.includes(ui.hStore)))
     .sort((a, b) => Number(hoursProgress(a).complete) - Number(hoursProgress(b).complete) || (b.received || '').localeCompare(a.received || '') || (a.location || '').localeCompare(b.location || ''));
