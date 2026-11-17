@@ -22,7 +22,7 @@ function emptyData() {
     schoolSchedule: [], // Don Bosco timetable: {id, day (1=Mon…5=Fri), start, end, group, subject, from}
     schoolLogs: {},     // "slotId|date" -> {status: given|not_given|absent, substitute, notes}
     substitutions: [],  // classes I covered for someone else: {id, date, start, end, group, teacher, notes}
-    hoursChanges: [],   // 4 Eleven: {id, store, type: store|special, received, effective, week{0..6: {open, close, closed}}, dates[{date, open, close, closed}], notes, done{platform: ts}, fileIds[]}
+    hoursChanges: [],   // 4 Eleven: {id, store, location (branch), type: store|special, received, effective, week{0..6: {open, close, closed}}, dates[{date, open, close, closed}], notes, done{platform: ts}, fileIds[]}
     hoursFiles: [],     // attachments for hours changes: {id, changeId, name, mime, data (data URL), size}
     reminders: [],      // {id, title, date, time, job, notes, leadDays (show on Today this many days before), done, doneAt}
     debts: [],          // {id, creditor, description, amount, currency, installment, repeat: once|monthly, dueDate, notes}
@@ -504,7 +504,7 @@ function agendaFor(iso) {
   if (iso === todayISO()) d.hoursChanges.filter((h) => !hoursProgress(h).complete && (h.received || '') <= iso).forEach((h) => {
     const pr = hoursProgress(h);
     items.push({
-      kind: 'hours', id: h.id, date: iso, title: `Update hours — ${(HOURS_STORES.find((s) => s[0] === h.store) || [, 'Store'])[1]}`,
+      kind: 'hours', id: h.id, date: iso, title: `Update hours — ${hoursStoreLabel(h)}`,
       job: h.store === 'foureleven' ? 'foureleven' : h.store, time: null, done: false,
       sub: `${h.type === 'special' ? 'Special' : 'Store'} hours · ${pr.done}/${pr.total} platforms${h.effective ? ' · effective ' + fmtDate(h.effective, { month: 'short', day: 'numeric' }) : ''}`,
     });
@@ -576,9 +576,19 @@ function hoursProgress(h) {
   return { done, total: list.length, complete: done === list.length };
 }
 
+/** "Movita Juice Bar · La Habra" */
+const hoursStoreLabel = (h) => `${(HOURS_STORES.find((s) => s[0] === h.store) || [, 'Store'])[1]}${h.location ? ' · ' + h.location : ''}`;
+
 /** "Mon–Fri 8am–9pm · Sat 9am–10pm · Sun Closed" (days left blank are unchanged and omitted). */
 function hoursSummary(h) {
-  const fmtSlot = (s) => (!s ? '' : s.closed ? 'Closed' : s.open || s.close ? `${fmtTime(s.open) || '?'}–${fmtTime(s.close) || '?'}` : '');
+  const fmtSlot = (s) => {
+    if (!s) return '';
+    if (s.closed) return 'Closed';
+    if (s.open && s.close) return `${fmtTime(s.open)}–${fmtTime(s.close)}`;
+    if (s.close) return `Closes ${fmtTime(s.close)}`; // e.g. "close early at 3:30pm"
+    if (s.open) return `Opens ${fmtTime(s.open)}`;
+    return '';
+  };
   if (h.type === 'special') {
     return (h.dates || []).filter((d) => d.date).map((d) => `${fmtDate(d.date, { month: 'short', day: 'numeric' })}: ${fmtSlot(d) || '—'}`).join(' · ');
   }

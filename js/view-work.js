@@ -309,7 +309,7 @@ function hoursTab() {
   const storeName = (k) => (HOURS_STORES.find((s) => s[0] === k) || [, k])[1];
   const list = Store.data.hoursChanges
     .filter((h) => ui.hStore === 'all' || h.store === ui.hStore || (h.store === 'foureleven' && RESTAURANTS.includes(ui.hStore)))
-    .sort((a, b) => Number(hoursProgress(a).complete) - Number(hoursProgress(b).complete) || (b.received || '').localeCompare(a.received || ''));
+    .sort((a, b) => Number(hoursProgress(a).complete) - Number(hoursProgress(b).complete) || (b.received || '').localeCompare(a.received || '') || (a.location || '').localeCompare(b.location || ''));
   const pending = Store.data.hoursChanges.filter((h) => !hoursProgress(h).complete).length;
   const cols = Object.entries(HOURS_PLATFORMS);
   return `
@@ -328,7 +328,7 @@ function hoursTab() {
       const allowed = platformsFor(h.type);
       const nFiles = (h.fileIds || []).length;
       return `<tr class="${pr.complete ? 'sh-complete' : ''}">
-        <td><button class="sh-link j-${h.store}" data-action="edit-hours" data-id="${h.id}"><span class="nav-dot"></span>${esc(storeName(h.store))}</button></td>
+        <td><button class="sh-link j-${h.store}" data-action="edit-hours" data-id="${h.id}"><span class="nav-dot"></span>${esc(storeName(h.store))}</button>${h.location ? `<small class="sh-loc">${esc(h.location)}</small>` : ''}</td>
         <td><span class="chip ${h.type === 'special' ? 'p-medium' : 'outline'}">${h.type === 'special' ? 'Special' : 'Store'}</span></td>
         <td>${h.received ? fmtDate(h.received, { month: 'short', day: 'numeric' }) : '—'}</td>
         <td>${h.effective ? fmtDate(h.effective, { month: 'short', day: 'numeric' }) : '—'}</td>

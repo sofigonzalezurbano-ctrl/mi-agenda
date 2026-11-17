@@ -1110,7 +1110,8 @@ function hoursForm(h, defaults = {}) {
     values,
     fields: [
       { name: 'store', label: 'Store', type: 'select', options: HOURS_STORES, half: true },
-      { name: 'type', label: 'Type', type: 'pills', options: [['store', 'Store hours'], ['special', 'Special hours']], half: true },
+      { name: 'location', label: 'Location / branch', half: true, placeholder: 'e.g. La Habra' },
+      { name: 'type', label: 'Type', type: 'pills', options: [['store', 'Store hours'], ['special', 'Special hours']] },
       { name: 'received', label: 'Received on', type: 'date', half: true, required: true },
       { name: 'effective', label: 'Effective from', type: 'date', half: true },
       { name: 'grid', type: 'html', cls: 'hours-grid-box', html: '<b>New hours</b><div data-grid></div>' },
@@ -1130,7 +1131,7 @@ function hoursForm(h, defaults = {}) {
       const form = $('#modal-root form');
       const grid = readHoursGrid(form, v.type);
       pending.forEach((f) => { const rec = Store.add('hoursFiles', { ...f, changeId: '' }); fileIds.push(rec.id); });
-      const rec = { store: v.store, type: v.type, received: v.received, effective: v.effective, notes: v.notes, ...grid, fileIds };
+      const rec = { store: v.store, location: v.location, type: v.type, received: v.received, effective: v.effective, notes: v.notes, ...grid, fileIds };
       let id;
       if (h) { Store.update('hoursChanges', h.id, rec); id = h.id; }
       else id = Store.add('hoursChanges', { ...rec, done: {} }).id;
@@ -1187,7 +1188,8 @@ function importHoursText(text) {
   const dayIdx = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
   const slot = (v) => {
     if (!v || /^closed$/i.test(String(v).trim())) return { closed: true, open: '', close: '' };
-    const [open, close] = String(v).split('-').map((x) => x.trim());
+    // "HH:MM-HH:MM", or "-HH:MM" (only closing time), or "HH:MM-" (only opening time)
+    const [open = '', close = ''] = String(v).split('-').map((x) => x.trim());
     return { open, close, closed: false };
   };
   return data.map((d) => {
@@ -1196,7 +1198,7 @@ function importHoursText(text) {
     Object.entries(d.week || {}).forEach(([k, v]) => { const i = dayIdx[k.slice(0, 3).toLowerCase()]; if (i !== undefined) week[i] = slot(v); });
     const dates = (d.dates || []).map((x) => ({ date: x.date, ...slot(x.hours) }));
     return Store.add('hoursChanges', {
-      store: d.store, type: d.type === 'special' ? 'special' : 'store', received: d.received || todayISO(),
+      store: d.store, location: d.location || '', type: d.type === 'special' ? 'special' : 'store', received: d.received || todayISO(),
       effective: d.effective || '', notes: d.notes || '', week, dates, done: {}, fileIds: [],
     });
   }).length;
