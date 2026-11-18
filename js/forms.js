@@ -1378,7 +1378,7 @@ const TRASH_LABELS = {
   assessments: 'Assessments', evaluations: 'Evaluations', tasks: 'Tasks', students: 'Students', incidents: 'Incidents',
   meetings: 'Meetings', onlineStudents: 'Online students', classes: 'Online classes', classLogs: 'Class notes',
   schoolLogs: 'Timetable marks', substitutions: 'Substitutions', needs: 'Things I need', transactions: 'Money movements',
-  goals: 'Savings goals', debts: 'Debts', schoolSchedule: 'Timetable blocks',
+  goals: 'Savings goals', debts: 'Debts', schoolSchedule: 'Timetable blocks', hoursChanges: 'Hours changes', hoursFiles: 'Hours files',
 };
 function trashSectionHTML() {
   const items = trashList();

@@ -606,6 +606,18 @@ function hoursLines(h) {
 }
 const hoursSummary = (h) => hoursLines(h).join(' · ');
 
+/** Erases every hours change and its files (a copy goes to the 30-day trash). */
+function clearHoursChanges() {
+  const d = Store.data;
+  if (typeof trashPut === 'function') {
+    trashPut([...d.hoursChanges.map((x) => ({ key: `hoursChanges__${x.id}`, json: stableJSON(x) })),
+      ...d.hoursFiles.map((x) => ({ key: `hoursFiles__${x.id}`, json: stableJSON(x) }))]);
+  }
+  d.hoursChanges = []; d.hoursFiles = [];
+  if (typeof CloudSync !== 'undefined') CloudSync.allowBulkDelete = true;
+  Store.save();
+}
+
 function removeHoursChange(id) {
   Store.data.hoursFiles = Store.data.hoursFiles.filter((f) => f.changeId !== id);
   Store.remove('hoursChanges', id);

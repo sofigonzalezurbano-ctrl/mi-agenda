@@ -317,7 +317,8 @@ function hoursTab() {
       <button class="chip-btn ${ui.hStore === 'all' ? 'active' : ''}" data-action="hours-store" data-store="all">All stores</button>
       ${HOURS_STORES.slice(0, 3).map(([k, l]) => `<button class="chip-btn ${ui.hStore === k ? 'active' : ''}" data-action="hours-store" data-store="${k}"><span class="nav-dot j-${k}"></span>${esc(l)}</button>`).join('')}
     </div>
-    <span class="chip ${pending ? 'p-high' : 'outline'}">${pending} pending</span>
+    <div class="chips"><span class="chip ${pending ? 'p-high' : 'outline'}">${pending} pending</span>
+      ${Store.data.hoursChanges.length ? `<button class="btn btn-ghost btn-sm danger" data-action="hours-clear">${icon('trash')}Delete all</button>` : ''}</div>
   </div>
   <section class="card">${list.length ? `<div class="sheet-wrap"><table class="sheet">
     <thead><tr><th>Location</th><th>Type</th><th>Received</th><th>Effective</th><th class="sh-hours">New hours</th>
