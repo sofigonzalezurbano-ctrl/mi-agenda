@@ -201,8 +201,9 @@ const ACTIONS = {
     const text = $('#hours-paste').value;
     if (!text.trim()) { toast('Paste the text from Claude first'); return; }
     try {
-      const n = importHoursText(text);
-      closeModal(); App.ui.fe.tab = 'hours'; toast(`${n} hours change${n > 1 ? 's' : ''} added`);
+      const { added, filled } = importHoursText(text);
+      closeModal(); App.ui.fe.tab = 'hours';
+      toast([added && `${added} added`, filled && `${filled} store name${filled > 1 ? 's' : ''} filled in`].filter(Boolean).join(' · ') || 'Already saved — nothing new');
     } catch (e) { toast(e.message.startsWith('Unknown') ? e.message : 'That text doesn’t look right — copy Claude’s whole block'); }
   },
 

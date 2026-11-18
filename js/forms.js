@@ -1192,16 +1192,29 @@ function importHoursText(text) {
     const [open = '', close = ''] = String(v).split('-').map((x) => x.trim());
     return { open, close, closed: false };
   };
-  return data.map((d) => {
+  // Same hours already saved without a location (pasted on an older app version)? Fill in the
+  // location there instead of adding a duplicate — this keeps any platforms already ticked.
+  const sameHours = (h, rec) => h.store === rec.store && h.type === rec.type && (h.received || '') === rec.received
+    && stableJSON(h.dates || []) === stableJSON(rec.dates) && stableJSON(h.week || {}) === stableJSON(rec.week);
+  const claimed = new Set();
+  let added = 0, filled = 0;
+  data.forEach((d) => {
     if (!HOURS_STORES.some((s) => s[0] === d.store)) throw new Error(`Unknown store "${d.store}"`);
     const week = {};
     Object.entries(d.week || {}).forEach(([k, v]) => { const i = dayIdx[k.slice(0, 3).toLowerCase()]; if (i !== undefined) week[i] = slot(v); });
     const dates = (d.dates || []).map((x) => ({ date: x.date, ...slot(x.hours) }));
-    return Store.add('hoursChanges', {
+    const rec = {
       store: d.store, location: d.location || '', type: d.type === 'special' ? 'special' : 'store', received: d.received || todayISO(),
-      effective: d.effective || '', notes: d.notes || '', week, dates, done: {}, fileIds: [],
-    });
-  }).length;
+      effective: d.effective || '', notes: d.notes || '', week, dates,
+    };
+    if (rec.location && Store.data.hoursChanges.some((h) => h.location === rec.location && sameHours(h, rec))) return; // already there
+    const free = (h) => !h.location && !claimed.has(h.id) && sameHours(h, rec);
+    const old = rec.location && (Store.data.hoursChanges.find((h) => free(h) && (h.notes || '') === rec.notes) || Store.data.hoursChanges.find(free));
+    if (old) { claimed.add(old.id); Store.update('hoursChanges', old.id, { location: rec.location }); filled++; return; }
+    Store.add('hoursChanges', { ...rec, done: {}, fileIds: [] });
+    added++;
+  });
+  return { added, filled };
 }
 
 function reminderForm(r, defaults = {}) {
