@@ -1193,26 +1193,22 @@ function loadHtml2Canvas() {
 function hoursExportHTML(list) {
   const plats = Object.entries(HOURS_PLATFORMS);
   const filter = App.ui.fe.hStore === 'all' ? '' : ` · ${(HOURS_STORES.find((s) => s[0] === App.ui.fe.hStore) || [, ''])[1]}`;
-  const short = (iso) => (iso ? fmtDate(iso, { month: 'short', day: 'numeric' }) : '—');
   return `<div class="hx">
     <div class="hx-head"><div><div class="hx-title">Hours changes update</div>
       <div class="hx-sub">${fmtLongDate(todayISO())}${esc(filter)}</div></div>
       <div class="hx-legend"><span class="hx-box on">✓</span> Updated <span class="hx-box"></span> Pending <span class="hx-na">n/a</span> Not needed</div></div>
     <table class="hx-table">
-      <thead><tr><th class="hx-loc">Location</th><th class="hx-hours">New hours</th>${plats.map(([, l]) => `<th class="hx-p">${esc(l)}</th>`).join('')}
-        <th>Done</th><th>Type</th><th>Received</th><th>Effective</th></tr></thead>
+      <thead><tr><th class="hx-loc">Location</th>${plats.map(([, l]) => `<th class="hx-p">${esc(l)}</th>`).join('')}
+        <th class="hx-p">Done</th></tr></thead>
       <tbody>${list.map((h) => {
         const pr = hoursProgress(h);
         const allowed = platformsFor(h.type);
         return `<tr>
           <td class="hx-loc">${esc(hoursStoreLabel(h))}</td>
-          <td class="hx-hours">${hoursLines(h).map((l) => `<div>${esc(l)}</div>`).join('') || '—'}</td>
           ${plats.map(([k]) => (allowed.includes(k)
             ? `<td class="hx-p"><span class="hx-box ${(h.done || {})[k] ? 'on' : ''}">${(h.done || {})[k] ? '✓' : ''}</span></td>`
             : '<td class="hx-p"><span class="hx-na">n/a</span></td>')).join('')}
-          <td><span class="hx-prog ${pr.complete ? 'ok' : ''}">${pr.done}/${pr.total}</span></td>
-          <td><span class="hx-type ${h.type}">${h.type === 'special' ? 'Special' : 'Store'}</span></td>
-          <td>${short(h.received)}</td><td>${short(h.effective)}</td>
+          <td class="hx-p"><span class="hx-prog ${pr.complete ? 'ok' : ''}">${pr.done}/${pr.total}</span></td>
         </tr>`;
       }).join('')}</tbody>
     </table></div>`;
