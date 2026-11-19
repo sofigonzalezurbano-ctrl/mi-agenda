@@ -197,6 +197,7 @@ const ACTIONS = {
     if (hoursProgress(h).complete) toast('All platforms updated ✓');
   },
   'hours-paste': () => pasteHoursSheet(),
+  'hours-export': () => { exportHoursImage(); },
   'hours-clear': () => {
     const n = Store.data.hoursChanges.length;
     if (!confirm(`Delete ALL ${n} hours changes (and their files)?\n\nA copy stays in Settings → Recently deleted for 30 days.`)) return;

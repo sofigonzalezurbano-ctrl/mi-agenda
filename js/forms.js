@@ -1175,6 +1175,83 @@ function dataURLtoBlob(url) {
   return new Blob([bytes], { type: head.slice(5).split(';')[0] });
 }
 
+/* ---- Export the hours table as an image (to share on Slack) ---- */
+let html2canvasReady = null;
+function loadHtml2Canvas() {
+  if (window.html2canvas) return Promise.resolve();
+  if (!html2canvasReady) {
+    html2canvasReady = new Promise((res, rej) => {
+      const el = document.createElement('script');
+      el.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+      el.onload = res; el.onerror = () => { html2canvasReady = null; rej(new Error('load')); };
+      document.head.appendChild(el);
+    });
+  }
+  return html2canvasReady;
+}
+
+function hoursExportHTML(list) {
+  const plats = Object.entries(HOURS_PLATFORMS);
+  const filter = App.ui.fe.hStore === 'all' ? '' : ` · ${(HOURS_STORES.find((s) => s[0] === App.ui.fe.hStore) || [, ''])[1]}`;
+  const short = (iso) => (iso ? fmtDate(iso, { month: 'short', day: 'numeric' }) : '—');
+  return `<div class="hx">
+    <div class="hx-head"><div><div class="hx-title">Hours changes update</div>
+      <div class="hx-sub">${fmtLongDate(todayISO())}${esc(filter)}</div></div>
+      <div class="hx-legend"><span class="hx-box on">✓</span> Updated <span class="hx-box"></span> Pending <span class="hx-na">n/a</span> Not needed</div></div>
+    <table class="hx-table">
+      <thead><tr><th class="hx-loc">Location</th><th class="hx-hours">New hours</th>${plats.map(([, l]) => `<th class="hx-p">${esc(l)}</th>`).join('')}
+        <th>Done</th><th>Type</th><th>Received</th><th>Effective</th></tr></thead>
+      <tbody>${list.map((h) => {
+        const pr = hoursProgress(h);
+        const allowed = platformsFor(h.type);
+        return `<tr>
+          <td class="hx-loc">${esc(hoursStoreLabel(h))}</td>
+          <td class="hx-hours">${hoursLines(h).map((l) => `<div>${esc(l)}</div>`).join('') || '—'}</td>
+          ${plats.map(([k]) => (allowed.includes(k)
+            ? `<td class="hx-p"><span class="hx-box ${(h.done || {})[k] ? 'on' : ''}">${(h.done || {})[k] ? '✓' : ''}</span></td>`
+            : '<td class="hx-p"><span class="hx-na">n/a</span></td>')).join('')}
+          <td><span class="hx-prog ${pr.complete ? 'ok' : ''}">${pr.done}/${pr.total}</span></td>
+          <td><span class="hx-type ${h.type}">${h.type === 'special' ? 'Special' : 'Store'}</span></td>
+          <td>${short(h.received)}</td><td>${short(h.effective)}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table></div>`;
+}
+
+async function exportHoursImage() {
+  const list = hoursListFiltered();
+  if (!list.length) { toast('Nothing to export'); return; }
+  toast('Creating image…');
+  try { await loadHtml2Canvas(); } catch (e) { toast('No internet — the image tool could not load'); return; }
+  const box = document.createElement('div');
+  box.className = 'hx-stage';
+  box.innerHTML = hoursExportHTML(list);
+  document.body.appendChild(box);
+  try {
+    await document.fonts.ready;
+    const canvas = await window.html2canvas(box.firstElementChild, { scale: 2, backgroundColor: '#fdf9f2', logging: false });
+    const blob = await new Promise((r) => canvas.toBlob(r, 'image/png'));
+    const name = `Hours update ${todayISO()}.png`;
+    const url = URL.createObjectURL(blob);
+    const file = new File([blob], name, { type: 'image/png' });
+    const canShare = navigator.canShare && navigator.canShare({ files: [file] });
+    openSheet('Hours update image', `
+      <img class="hours-img" src="${url}" alt="Hours changes table">
+      <div class="form-actions"><span class="spacer"></span>
+        <a class="btn btn-light" href="${url}" download="${esc(name)}">${icon('download')}Download</a>
+        ${canShare ? `<button class="btn btn-dark" data-share-img>${icon('upload')}Share</button>` : ''}
+      </div>`, { wide: true });
+    // A fresh tap here keeps the phone's share menu allowed.
+    const btn = $('#modal-root [data-share-img]');
+    if (btn) btn.addEventListener('click', () => navigator.share({ files: [file], title: 'Hours update' }).catch(() => {}));
+  } catch (e) {
+    console.warn(e);
+    toast('Could not create the image');
+  } finally {
+    box.remove();
+  }
+}
+
 /** Adds hours changes from the text Claude prepares out of a photo/screenshot. */
 function pasteHoursSheet() {
   openSheet('Paste from Claude', `

@@ -304,11 +304,17 @@ function incidentsTab() {
 
 /* ============ 4 Eleven Media ============ */
 /* Hours changes spreadsheet */
-function hoursTab() {
+/** Hours changes for the current store filter, pending first. */
+function hoursListFiltered() {
   const ui = App.ui.fe;
-  const list = Store.data.hoursChanges
+  return Store.data.hoursChanges
     .filter((h) => ui.hStore === 'all' || h.store === ui.hStore || (h.store === 'foureleven' && RESTAURANTS.includes(ui.hStore)))
     .sort((a, b) => Number(hoursProgress(a).complete) - Number(hoursProgress(b).complete) || (b.received || '').localeCompare(a.received || '') || (a.location || '').localeCompare(b.location || ''));
+}
+
+function hoursTab() {
+  const ui = App.ui.fe;
+  const list = hoursListFiltered();
   const pending = Store.data.hoursChanges.filter((h) => !hoursProgress(h).complete).length;
   const cols = Object.entries(HOURS_PLATFORMS);
   return `
@@ -318,6 +324,7 @@ function hoursTab() {
       ${HOURS_STORES.slice(0, 3).map(([k, l]) => `<button class="chip-btn ${ui.hStore === k ? 'active' : ''}" data-action="hours-store" data-store="${k}"><span class="nav-dot j-${k}"></span>${esc(l)}</button>`).join('')}
     </div>
     <div class="chips"><span class="chip ${pending ? 'p-high' : 'outline'}">${pending} pending</span>
+      ${list.length ? `<button class="btn btn-dark btn-sm" data-action="hours-export">${icon('download')}Export image</button>` : ''}
       ${Store.data.hoursChanges.length ? `<button class="btn btn-ghost btn-sm danger" data-action="hours-clear">${icon('trash')}Delete all</button>` : ''}</div>
   </div>
   <section class="card">${list.length ? `<div class="sheet-wrap"><table class="sheet">
