@@ -321,22 +321,22 @@ function hoursTab() {
       ${Store.data.hoursChanges.length ? `<button class="btn btn-ghost btn-sm danger" data-action="hours-clear">${icon('trash')}Delete all</button>` : ''}</div>
   </div>
   <section class="card">${list.length ? `<div class="sheet-wrap"><table class="sheet">
-    <thead><tr><th>Location</th><th>Type</th><th>Received</th><th>Effective</th><th class="sh-hours">New hours</th>
-      ${cols.map(([, l]) => `<th class="sh-p">${esc(l)}</th>`).join('')}<th>Done</th><th></th></tr></thead>
+    <thead><tr><th class="sh-sticky">Location</th><th class="sh-hours">New hours</th>
+      ${cols.map(([, l]) => `<th class="sh-p">${esc(l)}</th>`).join('')}<th>Done</th><th>Type</th><th>Received</th><th>Effective</th><th></th></tr></thead>
     <tbody>${list.map((h) => {
       const pr = hoursProgress(h);
       const allowed = platformsFor(h.type);
       const nFiles = (h.fileIds || []).length;
       return `<tr class="${pr.complete ? 'sh-complete' : ''}">
-        <td><button class="sh-link j-${h.store}" data-action="edit-hours" data-id="${h.id}"><span class="nav-dot"></span>${esc(hoursStoreLabel(h))}</button></td>
-        <td><span class="chip ${h.type === 'special' ? 'p-medium' : 'outline'}">${h.type === 'special' ? 'Special' : 'Store'}</span></td>
-        <td>${h.received ? fmtDate(h.received, { month: 'short', day: 'numeric' }) : '—'}</td>
-        <td>${h.effective ? fmtDate(h.effective, { month: 'short', day: 'numeric' }) : '—'}</td>
+        <td class="sh-sticky"><button class="sh-link j-${h.store}" data-action="edit-hours" data-id="${h.id}"><span class="nav-dot"></span>${esc(hoursStoreLabel(h))}</button></td>
         <td class="sh-hours" data-action="edit-hours" data-id="${h.id}">${hoursLines(h).map((l) => `<div>${esc(l)}</div>`).join('') || '<span class="muted">—</span>'}</td>
         ${cols.map(([k, l]) => allowed.includes(k)
           ? `<td class="sh-p"><button class="sh-check ${(h.done || {})[k] ? 'on' : ''}" data-action="hours-platform" data-id="${h.id}" data-p="${k}" aria-pressed="${!!(h.done || {})[k]}" aria-label="${esc(l)} updated">${icon('check')}</button></td>`
           : '<td class="sh-p sh-na">n/a</td>').join('')}
         <td><span class="sh-prog ${pr.complete ? 'ok' : ''}">${pr.done}/${pr.total}</span></td>
+        <td><span class="chip ${h.type === 'special' ? 'p-medium' : 'outline'}">${h.type === 'special' ? 'Special' : 'Store'}</span></td>
+        <td>${h.received ? fmtDate(h.received, { month: 'short', day: 'numeric' }) : '—'}</td>
+        <td>${h.effective ? fmtDate(h.effective, { month: 'short', day: 'numeric' }) : '—'}</td>
         <td>${nFiles ? `<button class="icon-btn sm ghost" data-action="hours-files" data-id="${h.id}" aria-label="See files">${icon('note')}<small>${nFiles}</small></button>` : ''}</td>
       </tr>`;
     }).join('')}</tbody></table></div>`
